@@ -1,4 +1,9 @@
+const fs = require('fs');
 const { loadConfig } = require('../../src/config');
+
+// Mock fs so file fallback returns [] in tests
+jest.mock('fs');
+fs.readFileSync.mockImplementation(() => { throw new Error('no file'); });
 
 describe('loadConfig', () => {
   const telegramEnv = {

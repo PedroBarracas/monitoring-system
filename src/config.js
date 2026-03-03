@@ -1,7 +1,11 @@
 // dotenv is loaded by the entry point (index.js), not here,
 // to avoid side effects on module import during testing.
 
+const fs = require('fs');
+const path = require('path');
+
 const VALID_CHANNELS = ['telegram', 'discord'];
+const TARGETS_PATH = path.join(__dirname, '..', 'data', 'product-targets.json');
 
 function loadConfig(env = process.env) {
   const channel = (env.NOTIFICATION_CHANNEL || 'telegram').toLowerCase();
@@ -35,7 +39,7 @@ function loadConfig(env = process.env) {
     // },
     products: {
       enabled: env.PRODUCTS_ENABLED !== 'false',
-      targets: parseJsonArray(env.PRODUCT_TARGETS, []),
+      targets: parseJsonArray(env.PRODUCT_TARGETS) || loadTargetsFile(),
       concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 5,
     },
     // news: {
@@ -59,13 +63,23 @@ function requireVars(env, keys) {
   }
 }
 
-function parseJsonArray(value, fallback) {
-  if (!value) return fallback;
+function parseJsonArray(value) {
+  if (!value) return null;
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : fallback;
+    return Array.isArray(parsed) ? parsed : null;
   } catch {
-    return fallback;
+    return null;
+  }
+}
+
+function loadTargetsFile() {
+  try {
+    const raw = fs.readFileSync(TARGETS_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
