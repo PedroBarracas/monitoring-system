@@ -1,0 +1,10 @@
+node_modules/
+data/monitoring.db
+data/extraction-diagnostic.json
+.env
+.claude/
+coverage/
+tests/
+scripts/
+tmp/
+todo.txt
