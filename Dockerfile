@@ -10,6 +10,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
+RUN npx playwright install --with-deps chromium
 
 COPY src/ src/
 COPY data/product-targets.json data/product-targets.json
