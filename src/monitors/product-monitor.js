@@ -62,8 +62,24 @@ function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, co
         }
         let browser;
         try {
-          browser = await chromium.launch();
-          const page = await browser.newPage();
+          browser = await chromium.launch({
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-http2',
+              '--disable-blink-features=AutomationControlled',
+              '--disable-dev-shm-usage',
+            ],
+          });
+          const context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            extraHTTPHeaders: {
+              'sec-ch-ua': '"Chromium";v="131", "Google Chrome";v="131", "Not-A.Brand";v="99"',
+              'sec-ch-ua-mobile': '?0',
+              'sec-ch-ua-platform': '"Windows"',
+            },
+          });
+          const page = await context.newPage();
           try {
             await page.goto(target.url, { waitUntil: 'networkidle', timeout: 30000 });
           } catch {
