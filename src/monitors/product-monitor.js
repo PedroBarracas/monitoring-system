@@ -172,21 +172,24 @@ function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, co
             newStatus,
           });
 
-          const absoluteChangeUrl = resolveUrl(product.productUrl, product.sourceUrl);
-          const bodyLines = [
-            `Status: ${oldStatus} -> ${newStatus}`,
-            `Product: ${absoluteChangeUrl}`,
-            `Store: ${product.sourceUrl}`,
-          ];
-          if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
+          // Only notify when product comes back in stock (not when it goes out of stock)
+          if (product.inStock) {
+            const absoluteChangeUrl = resolveUrl(product.productUrl, product.sourceUrl);
+            const bodyLines = [
+              `Status: ${oldStatus} -> ${newStatus}`,
+              `Product: ${absoluteChangeUrl}`,
+              `Store: ${product.sourceUrl}`,
+            ];
+            if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
 
-          const ok = await notifier.sendAlert({
-            eventType: 'STOCK_CHANGE',
-            title: product.title,
-            body: bodyLines.join('\n'),
-          });
-          if (!ok) logger.warn(`Failed to send stock change alert for ${product.productId}`);
-          sent++;
+            const ok = await notifier.sendAlert({
+              eventType: 'STOCK_CHANGE',
+              title: product.title,
+              body: bodyLines.join('\n'),
+            });
+            if (!ok) logger.warn(`Failed to send stock change alert for ${product.productId}`);
+            sent++;
+          }
         } else {
           productRepo.updateProduct({
             sourceUrl: product.sourceUrl,
