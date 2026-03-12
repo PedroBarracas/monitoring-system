@@ -83,6 +83,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, co
           try {
             await page.goto(target.url, { waitUntil: 'networkidle', timeout: 30000 });
           } catch {
+            if (!browser.isConnected()) throw new Error('Browser crashed during navigation');
             await page.goto(target.url, { waitUntil: 'load', timeout: 30000 });
             await page.waitForTimeout(5000);
           }
@@ -203,6 +204,11 @@ function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, co
       }
     } catch (err) {
       logger.error(`Failed to process ${target.url}`, { error: err.message });
+      await notifier.sendAlert({
+        eventType: 'ERROR',
+        title: `⚠️ Monitor error: ${target.url}`,
+        body: `Error: ${err.message}`,
+      });
       errs.push(`${target.url}: ${err.message}`);
     }
 
