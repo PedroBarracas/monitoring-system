@@ -30,6 +30,7 @@ function loadConfig(env = process.env) {
     },
     discord: {
       webhookUrl: env.DISCORD_WEBHOOK_URL || '',
+      errorWebhookUrl: env.DISCORD_ERROR_WEBHOOK_URL || '',
     },
     // crypto: {
     //   enabled: env.CRYPTO_ENABLED !== 'false',

@@ -8,6 +8,7 @@ const EVENT_COLORS = {
   NEW_PRODUCT: 0xfee75c,    // bright yellow
   STOCK_CHANGE: 0xe67e22,   // orange
   NEW_ARTICLE: 0x9b59b6,    // purple
+  ERROR: 0xe74c3c,          // red
 };
 const DEFAULT_COLOR = 0x95a5a6; // gray
 

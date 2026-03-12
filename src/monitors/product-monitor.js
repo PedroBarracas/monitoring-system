@@ -14,7 +14,7 @@ function resolveUrl(url, base) {
   }
 }
 
-function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, config, logger }) {
+function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 5);
 
   // Resolve Playwright once at creation time (optional dependency)
@@ -204,7 +204,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, httpClient, co
       }
     } catch (err) {
       logger.error(`Failed to process ${target.url}`, { error: err.message });
-      await notifier.sendAlert({
+      await errorNotifier.sendAlert({
         eventType: 'ERROR',
         title: `⚠️ Monitor error: ${target.url}`,
         body: `Error: ${err.message}`,

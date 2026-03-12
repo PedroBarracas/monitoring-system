@@ -32,12 +32,20 @@ const httpClient = createHttpClient({
 
 // Initialize notification service based on config
 let notifier;
+let errorNotifier;
 if (config.notificationChannel === 'discord') {
   notifier = createDiscordService({
     webhookUrl: config.discord.webhookUrl,
     httpClient,
     logger: createLogger('discord', { level: config.logLevel }),
   });
+  errorNotifier = config.discord.errorWebhookUrl
+    ? createDiscordService({
+        webhookUrl: config.discord.errorWebhookUrl,
+        httpClient,
+        logger: createLogger('discord-errors', { level: config.logLevel }),
+      })
+    : notifier;
   logger.info('Using Discord for notifications');
 } else {
   notifier = createTelegramService({
@@ -46,6 +54,7 @@ if (config.notificationChannel === 'discord') {
     httpClient,
     logger: createLogger('telegram', { level: config.logLevel }),
   });
+  errorNotifier = notifier;
   logger.info('Using Telegram for notifications');
 }
 
@@ -80,6 +89,7 @@ if (config.products.enabled && config.products.targets.length > 0) {
       productRepo: createProductRepository(db),
       alertRepo,
       notifier,
+      errorNotifier,
       httpClient,
       config: config.products,
       logger: createLogger('product-monitor', { level: config.logLevel }),
