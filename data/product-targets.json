@@ -45,8 +45,9 @@
   { "url": "https://dreamshop18.com/category/one-piece-cg", "dynamic": true },
   { "url": "https://littlerootgames.com/collections/one-piece-sealed?sort_by=created-descending" },
   { "url": "https://trapcardtcg.com/collections/one-piece-para-break?sort_by=created-descending" },
-  { "url": "https://aquitaz.se/collections/forbestallning?filter.p.vendor=One+Piece&" },
+  { "url": "https://aquitaz.se/collections/forbestallning?filter.v.availability=1&filter.p.vendor=One+Piece&" },
   { "url": "https://mercadiagames.pt/shop/?orderby=date&filters=product_cat[one-piece]" },
   { "url": "https://arenaporto.pt/13-13-outros-tcgs-" },
-  { "url": "https://www.playerspot.pt/pre-encomendas" }
+  { "url": "https://www.playerspot.pt/pre-encomendas" },
+  { "url": "https://outpostbrussels.be/collections/one-piece-1?filter.v.availability=1&sort_by=created-descending" }
 ]
