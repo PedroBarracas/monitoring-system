@@ -9,6 +9,7 @@ describe('product-monitor', () => {
   let mockProductRepo;
   let mockAlertRepo;
   let mockNotifier;
+  let mockErrorNotifier;
   let mockHttpClient;
   let mockLogger;
   let monitor;
@@ -34,12 +35,14 @@ describe('product-monitor', () => {
     };
     mockAlertRepo = { logAlert: jest.fn() };
     mockNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
+    mockErrorNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
     mockHttpClient = { fetchHtml: jest.fn() };
     mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
     monitor = createProductMonitor({
       productRepo: mockProductRepo,
       alertRepo: mockAlertRepo,
       notifier: mockNotifier,
+      errorNotifier: mockErrorNotifier,
       httpClient: mockHttpClient,
       config,
       logger: mockLogger,
@@ -188,6 +191,7 @@ describe('product-monitor', () => {
       productRepo: mockProductRepo,
       alertRepo: mockAlertRepo,
       notifier: mockNotifier,
+      errorNotifier: mockErrorNotifier,
       httpClient: mockHttpClient,
       config: multiConfig,
       logger: mockLogger,
@@ -221,6 +225,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: jsonldConfig,
         logger: mockLogger,
@@ -251,6 +256,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: heuristicConfig,
         logger: mockLogger,
@@ -282,6 +288,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: autoConfig,
         logger: mockLogger,
@@ -313,6 +320,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: autoConfig,
         logger: mockLogger,
@@ -411,6 +419,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: detailConfig,
         logger: mockLogger,
@@ -448,6 +457,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: noDetailConfig,
         logger: mockLogger,
@@ -487,6 +497,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: detailConfig,
         logger: mockLogger,
@@ -518,6 +529,7 @@ describe('product-monitor', () => {
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
         notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: manyTargets,
         logger: mockLogger,

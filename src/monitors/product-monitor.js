@@ -204,11 +204,6 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
       }
     } catch (err) {
       logger.error(`Failed to process ${target.url}`, { error: err.message });
-      await errorNotifier.sendAlert({
-        eventType: 'ERROR',
-        title: `⚠️ Monitor error: ${target.url}`,
-        body: `Error: ${err.message}`,
-      });
       errs.push(`${target.url}: ${err.message}`);
     }
 
@@ -228,6 +223,28 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
       for (const { sent, errs } of results) {
         alertsSent += sent;
         errors.push(...errs);
+      }
+
+      const successCount = config.targets.length - errors.length;
+      const failCount = errors.length;
+
+      if (failCount > 0) {
+        const errorLines = errors.map((e) => {
+          const sep = e.indexOf(': ');
+          const url = sep > -1 ? e.slice(0, sep) : e;
+          const msg = sep > -1 ? e.slice(sep + 2) : 'Unknown error';
+          return `${url} → ${msg}`;
+        });
+
+        await errorNotifier.sendAlert({
+          eventType: 'ERROR',
+          title: `⚠️ Cycle summary: ${successCount} OK / ${failCount} failed`,
+          body: [
+            `Successful: ${successCount}/${config.targets.length}`,
+            `Failed: ${failCount}/${config.targets.length}`,
+            `\nErrors:\n${errorLines.join('\n')}`,
+          ].join('\n'),
+        });
       }
 
       return { alertsSent, errors };
