@@ -1,5 +1,6 @@
 const OOS_KEYWORDS = [
   'out of stock',
+  'out-of-stock',
   'sold out',
   'esgotado',
   'sem stock',
