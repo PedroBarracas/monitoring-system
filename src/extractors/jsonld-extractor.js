@@ -34,7 +34,7 @@ function extractIdFromUrl(url) {
 }
 
 function resolveOffers(offers) {
-  if (!offers) return { inStock: 1, price: null, currency: null };
+  if (!offers) return { inStock: 1, availabilityExplicit: false, price: null, currency: null };
 
   const offerList = Array.isArray(offers) ? offers : [offers];
 
@@ -46,10 +46,10 @@ function resolveOffers(offers) {
     const inStock = avail && !IN_STOCK_TYPES.has(avail) ? 0 : 1;
     const price = offer.price != null ? String(offer.price) : (offer.lowPrice != null ? String(offer.lowPrice) : null);
     const currency = offer.priceCurrency || null;
-    return { inStock, price, currency };
+    return { inStock, availabilityExplicit: !!avail, price, currency };
   }
 
-  return { inStock: 1, price: null, currency: null };
+  return { inStock: 1, availabilityExplicit: false, price: null, currency: null };
 }
 
 function resolveProductId(item, sourceUrl) {
@@ -68,12 +68,13 @@ function resolveProductId(item, sourceUrl) {
 function normalizeProduct(item, sourceUrl) {
   if (!item.name) return null;
 
-  const { inStock, price, currency } = resolveOffers(item.offers);
+  const { inStock, availabilityExplicit, price, currency } = resolveOffers(item.offers);
   return {
     productId: resolveProductId(item, sourceUrl),
     productUrl: item.url || '',
     title: item.name,
     inStock,
+    availabilityExplicit,
     price,
     currency,
     sourceUrl,

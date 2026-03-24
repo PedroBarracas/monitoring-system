@@ -48,10 +48,21 @@ async function checkDetailPageStock(products, { baseUrl, httpClient, logger, con
         // Prefer JSON-LD structured data (most reliable, bidirectional)
         const jsonLdDetail = getJsonLdDetail(html, url);
         if (jsonLdDetail) {
-          if (jsonLdDetail.inStock !== product.inStock) {
-            logger.info(`Detail page JSON-LD stock for "${product.title}": ${jsonLdDetail.inStock ? 'In Stock' : 'OOS'} (${url})`);
+          let stockStatus = jsonLdDetail.inStock;
+
+          // Safety net: when JSON-LD has no explicit availability field it
+          // defaults to in-stock.  In that case, fall back to OOS keyword
+          // check so pages that visually show "agotado" / "sold out" are
+          // correctly marked as out-of-stock.
+          if (stockStatus && !jsonLdDetail.availabilityExplicit && isDetailPageOutOfStock(html)) {
+            logger.info(`Detail page OOS keyword overrides implicit JSON-LD in-stock for "${product.title}" (${url})`);
+            stockStatus = 0;
           }
-          const updated = { ...product, inStock: jsonLdDetail.inStock };
+
+          if (stockStatus !== product.inStock) {
+            logger.info(`Detail page JSON-LD stock for "${product.title}": ${stockStatus ? 'In Stock' : 'OOS'} (${url})`);
+          }
+          const updated = { ...product, inStock: stockStatus };
           if (jsonLdDetail.price != null) updated.price = jsonLdDetail.price;
           if (jsonLdDetail.currency != null) updated.currency = jsonLdDetail.currency;
           return updated;
