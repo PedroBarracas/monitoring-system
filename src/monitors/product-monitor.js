@@ -116,6 +116,8 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
         return { sent, errs };
       }
 
+      const extractedIds = new Set(products.map((p) => p.productId));
+
       for (const product of products) {
         const existing = productRepo.getProduct(product.sourceUrl, product.productId);
         const priceDisplay = product.price ? `${product.price}${product.currency ? ' ' + product.currency : ''}` : null;
@@ -154,6 +156,41 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
           });
           if (!ok) logger.warn(`Failed to send new product alert for ${product.productId}`);
           sent++;
+        } else if (existing.removed) {
+          // Product was previously removed and is back on the page
+          productRepo.reactivateProduct({
+            sourceUrl: product.sourceUrl,
+            productId: product.productId,
+            inStock: product.inStock,
+            title: product.title,
+            price: product.price,
+            currency: product.currency,
+          });
+
+          if (product.inStock) {
+            const absoluteUrl = resolveUrl(product.productUrl, product.sourceUrl);
+            const bodyLines = [
+              `Status: Back in Stock`,
+              `Product: ${absoluteUrl}`,
+              `Store: ${product.sourceUrl}`,
+            ];
+            if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
+
+            alertRepo.logAlert('stock_change', {
+              productId: product.productId,
+              title: product.title,
+              oldStatus: 'Removed',
+              newStatus: 'In Stock',
+            });
+
+            const ok = await notifier.sendAlert({
+              eventType: 'STOCK_CHANGE',
+              title: product.title,
+              body: bodyLines.join('\n'),
+            });
+            if (!ok) logger.warn(`Failed to send restock alert for ${product.productId}`);
+            sent++;
+          }
         } else if (existing.in_stock !== product.inStock) {
           productRepo.updateProduct({
             sourceUrl: product.sourceUrl,
@@ -200,6 +237,35 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             price: product.price,
             currency: product.currency,
           });
+        }
+      }
+
+      // Detect removed products
+      const existingProducts = productRepo.getProductsBySource(target.url);
+      const removedProducts = existingProducts.filter((p) => !extractedIds.has(p.product_id));
+
+      if (removedProducts.length > 0) {
+        const removedLines = removedProducts.map((p) => {
+          const absoluteUrl = resolveUrl(p.product_url, p.source_url);
+          return `• ${p.title}\n  ${absoluteUrl}`;
+        });
+
+        alertRepo.logAlert('products_removed', {
+          sourceUrl: target.url,
+          count: removedProducts.length,
+          products: removedProducts.map((p) => ({ productId: p.product_id, title: p.title })),
+        });
+
+        const ok = await notifier.sendAlert({
+          eventType: 'PRODUCTS_REMOVED',
+          title: `🗑️ ${removedProducts.length} product${removedProducts.length > 1 ? 's' : ''} removed`,
+          body: [`Store: ${target.url}`, '', ...removedLines].join('\n'),
+        });
+        if (!ok) logger.warn(`Failed to send product removal alert for ${target.url}`);
+        sent++;
+
+        for (const p of removedProducts) {
+          productRepo.markRemoved(target.url, p.product_id);
         }
       }
     } catch (err) {

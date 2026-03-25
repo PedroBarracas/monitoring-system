@@ -32,6 +32,9 @@ describe('product-monitor', () => {
       insertProduct: jest.fn(),
       updateProduct: jest.fn(),
       countBySource: jest.fn().mockReturnValue(0),
+      getProductsBySource: jest.fn().mockReturnValue([]),
+      markRemoved: jest.fn(),
+      reactivateProduct: jest.fn(),
     };
     mockAlertRepo = { logAlert: jest.fn() };
     mockNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };

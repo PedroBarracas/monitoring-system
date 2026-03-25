@@ -19,6 +19,7 @@ function runMigrations(db) {
       price           TEXT,
       currency        TEXT,
       first_seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      removed         INTEGER NOT NULL DEFAULT 0,
       last_checked_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(source_url, product_id)
     );
@@ -41,6 +42,12 @@ function runMigrations(db) {
       sent_at     TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Add 'removed' column to existing products table
+  const cols = db.prepare("PRAGMA table_info('products')").all();
+  if (!cols.some((c) => c.name === 'removed')) {
+    db.exec("ALTER TABLE products ADD COLUMN removed INTEGER NOT NULL DEFAULT 0");
+  }
 }
 
 module.exports = { runMigrations };

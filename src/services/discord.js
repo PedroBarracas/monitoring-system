@@ -7,6 +7,7 @@ const EVENT_COLORS = {
   PRICE_CHANGE: 0xf39c12,   // gold
   NEW_PRODUCT: 0xfee75c,    // bright yellow
   STOCK_CHANGE: 0xe67e22,   // orange
+  PRODUCTS_REMOVED: 0xe74c3c, // red
   NEW_ARTICLE: 0x9b59b6,    // purple
   ERROR: 0xe74c3c,          // red
 };

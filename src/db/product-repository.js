@@ -12,7 +12,16 @@ function createProductRepository(db) {
     WHERE source_url = ? AND product_id = ?
   `);
   const countBySourceStmt = db.prepare(
-    'SELECT COUNT(*) AS cnt FROM products WHERE source_url = ?'
+    'SELECT COUNT(*) AS cnt FROM products WHERE source_url = ? AND removed = 0'
+  );
+  const selectBySourceStmt = db.prepare(
+    'SELECT * FROM products WHERE source_url = ? AND removed = 0'
+  );
+  const markRemovedStmt = db.prepare(
+    'UPDATE products SET removed = 1, last_checked_at = datetime(\'now\') WHERE source_url = ? AND product_id = ?'
+  );
+  const reactivateStmt = db.prepare(
+    'UPDATE products SET removed = 0, in_stock = ?, title = ?, price = ?, currency = ?, last_checked_at = datetime(\'now\') WHERE source_url = ? AND product_id = ?'
   );
 
   return {
@@ -30,6 +39,18 @@ function createProductRepository(db) {
 
     countBySource(sourceUrl) {
       return countBySourceStmt.get(sourceUrl).cnt;
+    },
+
+    getProductsBySource(sourceUrl) {
+      return selectBySourceStmt.all(sourceUrl);
+    },
+
+    markRemoved(sourceUrl, productId) {
+      markRemovedStmt.run(sourceUrl, productId);
+    },
+
+    reactivateProduct({ sourceUrl, productId, inStock, title, price, currency }) {
+      reactivateStmt.run(inStock, title, price || null, currency || null, sourceUrl, productId);
     },
   };
 }
