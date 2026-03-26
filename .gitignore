@@ -1,6 +1,7 @@
 node_modules/
 data/monitoring.db
 data/extraction-diagnostic.json
+data/fetch-results.json
 .env
 coverage/
 tmp/
