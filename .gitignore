@@ -2,6 +2,10 @@ node_modules/
 data/monitoring.db
 data/extraction-diagnostic.json
 data/fetch-results.json
+data/fetch-results-onepiece.json
+data/links_onepiece.json
+data/links_onepiece_removed.json
+todo.txt
 .env
 coverage/
 tmp/

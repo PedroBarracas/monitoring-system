@@ -513,6 +513,165 @@ describe('product-monitor', () => {
     });
   });
 
+  describe('skipNotify', () => {
+    const fs = require('fs');
+    const originalReadFileSync = fs.readFileSync;
+    let readSpy;
+    let writeSpy;
+
+    afterEach(() => {
+      if (readSpy) readSpy.mockRestore();
+      if (writeSpy) writeSpy.mockRestore();
+    });
+
+    function mockTargetsFile(fileContents) {
+      readSpy = jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, ...args) => {
+        if (String(filePath).includes('product-targets.json')) {
+          return JSON.stringify(fileContents);
+        }
+        return originalReadFileSync(filePath, ...args);
+      });
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation((filePath) => {
+        if (!String(filePath).includes('product-targets.json')) {
+          throw new Error(`Unexpected write to ${filePath}`);
+        }
+      });
+    }
+
+    test('skips notifications but still inserts products when skipNotify is true', async () => {
+      const skipConfig = {
+        targets: [{
+          url: 'https://shop.example.com/new-arrivals',
+          selectors: DEFAULT_PRODUCT_SELECTORS,
+          extractor: 'css',
+          dynamic: false,
+          skipNotify: true,
+        }],
+        concurrency: 5,
+      };
+
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockTargetsFile(skipConfig.targets);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: skipConfig,
+        logger: mockLogger,
+      });
+
+      const result = await m.run();
+
+      // Products are inserted into DB
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(3);
+      // No notifications sent
+      expect(mockNotifier.sendAlert).not.toHaveBeenCalled();
+      expect(mockAlertRepo.logAlert).not.toHaveBeenCalled();
+      expect(result.alertsSent).toBe(0);
+    });
+
+    test('auto-removes skipNotify from targets file after run', async () => {
+      const skipConfig = {
+        targets: [{
+          url: 'https://shop.example.com/new-arrivals',
+          selectors: DEFAULT_PRODUCT_SELECTORS,
+          extractor: 'css',
+          dynamic: false,
+          skipNotify: true,
+        }],
+        concurrency: 5,
+      };
+
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      const fileTargets = [
+        { url: 'https://shop.example.com/new-arrivals', skipNotify: true },
+        { url: 'https://other-shop.com' },
+      ];
+      mockTargetsFile(fileTargets);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: skipConfig,
+        logger: mockLogger,
+      });
+
+      await m.run();
+
+      // Should have written the file with skipNotify removed
+      expect(writeSpy).toHaveBeenCalledTimes(1);
+      const writtenPath = writeSpy.mock.calls[0][0];
+      expect(String(writtenPath)).toContain('product-targets.json');
+      const written = JSON.parse(writeSpy.mock.calls[0][1].trim());
+      expect(written[0]).not.toHaveProperty('skipNotify');
+      expect(written[1]).toEqual({ url: 'https://other-shop.com' });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Removed skipNotify from 1 target(s)')
+      );
+    });
+
+    test('does not write targets file when no skipNotify targets exist', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+
+      await monitor.run();
+
+      // The default config has no skipNotify, so file should not be written
+      expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    test('logs warning when targets file cannot be updated', async () => {
+      const skipConfig = {
+        targets: [{
+          url: 'https://shop.example.com/new-arrivals',
+          selectors: DEFAULT_PRODUCT_SELECTORS,
+          extractor: 'css',
+          dynamic: false,
+          skipNotify: true,
+        }],
+        concurrency: 5,
+      };
+
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      readSpy = jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, ...args) => {
+        if (String(filePath).includes('product-targets.json')) {
+          throw new Error('ENOENT');
+        }
+        return originalReadFileSync(filePath, ...args);
+      });
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifier: mockNotifier,
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: skipConfig,
+        logger: mockLogger,
+      });
+
+      await m.run();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to auto-remove skipNotify')
+      );
+    });
+  });
+
   describe('concurrency', () => {
     test('processes targets concurrently up to limit', async () => {
       const manyTargets = {

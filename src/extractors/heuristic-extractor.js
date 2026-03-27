@@ -1,7 +1,7 @@
 const cheerio = require('cheerio');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
 
-const OOS_CLASSES = ['sold-out', 'soldout', 'outofstock', 'out-of-stock'];
+const OOS_CLASSES = ['sold-out', 'soldout', 'outofstock', 'out-of-stock', 'agotado'];
 
 // Ordered from most specific to most generic. First selector with matches wins.
 const CONTAINER_SELECTORS = [
@@ -25,8 +25,18 @@ const CONTAINER_SELECTORS = [
   // Shopkit
   'div.product[data-id]',
   'article.product-list',
+  // JTL-Shop
+  '.product-wrapper',
   // Wix
   '[data-hook="product-item-root"]',
+  // European platforms
+  '.product-box',
+  '.item-widget',
+  // Jimdo / Shoptet
+  '.js-product-container',
+  '.product-gallery__item',
+  // Material UI (React storefronts)
+  'article.MuiCard-root',
   // Site-specific
   '.product-slide-entry',
   'li.c-product-grid__wrapper',
@@ -37,7 +47,9 @@ const CONTAINER_SELECTORS = [
   '[class*="product-card"]',
   '[class*="product-item"]',
   '[class*="ProductCard"]',
-  '[data-product-id]',
+  'div[data-product-id]',
+  'li[data-product-id]',
+  'article[data-product-id]',
   '[data-product]',
   'figure.product',
 ];
@@ -45,6 +57,9 @@ const CONTAINER_SELECTORS = [
 const TITLE_SELECTORS = [
   // Shopify
   '.card__heading a', '.product-card__title a', '.product-card__title',
+  // Shopify (visually-hidden titles inside link)
+  '.visually-hidden',
+  'a .sr-only',
   // WooCommerce
   '.woocommerce-loop-product__title',
   // PrestaShop
@@ -53,11 +68,17 @@ const TITLE_SELECTORS = [
   '.grid-product__title-inner',
   // Wix
   '[data-hook="product-item-name"]',
+  // JTL-Shop
+  '.productbox-title a', '.productbox-title',
+  // Schema.org itemprop
+  '[itemprop="name"]',
+  // Jimdo / Shoptet
+  '.product-gallery__title', '.product-gallery__content a',
   // Site-specific
   '.wsite-com-category-product-name',
   '.filetitle a',
   // Generic
-  'h3 a', 'h2 a', 'h5 a', 'h3', 'h2', 'h5',
+  'h3 a', 'h2 a', 'h4 a', 'h5 a', 'h3', 'h2', 'h4', 'h5',
   '[class*="title"] a', '[class*="title"]', '[class*="name"] a',
 ];
 
@@ -112,9 +133,15 @@ function extractProductId(url) {
 }
 
 function isOutOfStock(el, $) {
-  const classes = ($(el).attr('class') || '').toLowerCase();
+  // Check class names on the container and all descendant elements
+  const allClasses = [];
+  allClasses.push(($(el).attr('class') || '').toLowerCase());
+  $(el).find('[class]').each((_i, child) => {
+    allClasses.push(($(child).attr('class') || '').toLowerCase());
+  });
+  const classStr = allClasses.join(' ');
   for (const cls of OOS_CLASSES) {
-    if (classes.includes(cls)) return true;
+    if (classStr.includes(cls)) return true;
   }
   const text = $(el).text().toLowerCase();
   for (const keyword of OOS_KEYWORDS) {
@@ -159,13 +186,22 @@ function extract(html, sourceUrl) {
   containers.each((_i, el) => {
     const $el = $(el);
 
-    const titleEl = findFirst($el, TITLE_SELECTORS, $);
-    const title = titleEl ? titleEl.text().trim() : '';
-    if (!title) return;
-
     const linkEl = findFirst($el, LINK_SELECTORS, $);
     const productUrl = linkEl ? (linkEl.attr('href') || '') : '';
     if (!productUrl) return;
+
+    const titleEl = findFirst($el, TITLE_SELECTORS, $);
+    let title = titleEl ? titleEl.text().trim() : '';
+    // Fallback: try link's title/aria-label attributes
+    if (!title && linkEl) {
+      title = (linkEl.attr('title') || linkEl.attr('aria-label') || '').trim();
+    }
+    // Fallback: try image alt text
+    if (!title) {
+      const img = $el.find('img[alt]').first();
+      if (img.length) title = (img.attr('alt') || '').trim();
+    }
+    if (!title) return;
 
     const productId = extractProductId(productUrl) || slugify(title);
 

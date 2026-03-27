@@ -1,9 +1,13 @@
+const fs = require('fs');
+const path = require('path');
 const cssExtractor = require('../extractors/css-extractor');
 const jsonldExtractor = require('../extractors/jsonld-extractor');
 const heuristicExtractor = require('../extractors/heuristic-extractor');
 const { createLimiter } = require('../utils/concurrency');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
 const { checkDetailPageStock } = require('../utils/detail-stock-checker');
+
+const TARGETS_PATH = path.join(__dirname, '..', '..', 'data', 'product-targets.json');
 
 function resolveUrl(url, base) {
   if (!url) return base;
@@ -15,7 +19,7 @@ function resolveUrl(url, base) {
 }
 
 function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier, httpClient, config, logger }) {
-  const limit = createLimiter(config.concurrency || 5);
+  const limit = createLimiter(config.concurrency || 15);
 
   // Resolve Playwright once at creation time (optional dependency)
   let chromium = null;
@@ -133,29 +137,33 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             currency: product.currency,
           });
 
-          alertRepo.logAlert('new_product', {
-            productId: product.productId,
-            title: product.title,
-            url: product.productUrl,
-            inStock: product.inStock === 1,
-            price: product.price,
-          });
+          if (!target.skipNotify) {
+            alertRepo.logAlert('new_product', {
+              productId: product.productId,
+              title: product.title,
+              url: product.productUrl,
+              inStock: product.inStock === 1,
+              price: product.price,
+            });
 
-          const absoluteProductUrl = resolveUrl(product.productUrl, product.sourceUrl);
-          const bodyLines = [
-            `Product: ${absoluteProductUrl}`,
-            `Store: ${product.sourceUrl}`,
-            `Status: ${product.inStock ? 'In Stock' : 'Out of Stock'}`,
-          ];
-          if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
+            const absoluteProductUrl = resolveUrl(product.productUrl, product.sourceUrl);
+            const bodyLines = [
+              `Product: ${absoluteProductUrl}`,
+              `Store: ${product.sourceUrl}`,
+              `Status: ${product.inStock ? 'In Stock' : 'Out of Stock'}`,
+            ];
+            if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
 
-          const ok = await notifier.sendAlert({
-            eventType: 'NEW_PRODUCT',
-            title: `🛒 New product added: ${product.title}`,
-            body: bodyLines.join('\n'),
-          });
-          if (!ok) logger.warn(`Failed to send new product alert for ${product.productId}`);
-          sent++;
+            const ok = await notifier.sendAlert({
+              eventType: 'NEW_PRODUCT',
+              title: `🛒 New product added: ${product.title}`,
+              body: bodyLines.join('\n'),
+            });
+            if (!ok) logger.warn(`Failed to send new product alert for ${product.productId}`);
+            sent++;
+          } else {
+            logger.info(`Skipping notification for new product: ${product.title} (skipNotify)`);
+          }
         } else if (existing.removed) {
           // Product was previously removed and is back on the page
           productRepo.reactivateProduct({
@@ -240,33 +248,22 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
         }
       }
 
-      // Detect removed products
+      // Detect removed products — mark in DB but don't send notifications
       const existingProducts = productRepo.getProductsBySource(target.url);
       const removedProducts = existingProducts.filter((p) => !extractedIds.has(p.product_id));
 
       if (removedProducts.length > 0) {
-        const removedLines = removedProducts.map((p) => {
-          const absoluteUrl = resolveUrl(p.product_url, p.source_url);
-          return `• ${p.title}\n  ${absoluteUrl}`;
-        });
-
         alertRepo.logAlert('products_removed', {
           sourceUrl: target.url,
           count: removedProducts.length,
           products: removedProducts.map((p) => ({ productId: p.product_id, title: p.title })),
         });
 
-        const ok = await notifier.sendAlert({
-          eventType: 'PRODUCTS_REMOVED',
-          title: `🗑️ ${removedProducts.length} product${removedProducts.length > 1 ? 's' : ''} removed`,
-          body: [`Store: ${target.url}`, '', ...removedLines].join('\n'),
-        });
-        if (!ok) logger.warn(`Failed to send product removal alert for ${target.url}`);
-        sent++;
-
         for (const p of removedProducts) {
           productRepo.markRemoved(target.url, p.product_id);
         }
+
+        logger.info(`${removedProducts.length} product(s) marked as removed from ${target.url}`);
       }
     } catch (err) {
       logger.error(`Failed to process ${target.url}`, { error: err.message });
@@ -311,6 +308,28 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             `\nErrors:\n${errorLines.join('\n')}`,
           ].join('\n'),
         });
+      }
+
+      // Auto-remove skipNotify from targets file after first successful run
+      const skippedTargets = config.targets.filter((t) => t.skipNotify);
+      if (skippedTargets.length > 0) {
+        try {
+          const raw = fs.readFileSync(TARGETS_PATH, 'utf8');
+          const targets = JSON.parse(raw);
+          let changed = false;
+          for (const t of targets) {
+            if (t.skipNotify) {
+              delete t.skipNotify;
+              changed = true;
+            }
+          }
+          if (changed) {
+            fs.writeFileSync(TARGETS_PATH, JSON.stringify(targets, null, 2) + '\n', 'utf8');
+            logger.info(`Removed skipNotify from ${skippedTargets.length} target(s) in product-targets.json`);
+          }
+        } catch (err) {
+          logger.warn(`Failed to auto-remove skipNotify from targets file: ${err.message}`);
+        }
       }
 
       return { alertsSent, errors };
