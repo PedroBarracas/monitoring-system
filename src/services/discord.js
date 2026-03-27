@@ -10,6 +10,7 @@ const EVENT_COLORS = {
   PRODUCTS_REMOVED: 0xe74c3c, // red
   NEW_ARTICLE: 0x9b59b6,    // purple
   ERROR: 0xe74c3c,          // red
+  CYCLE_SUMMARY: 0x2ecc71,  // green
 };
 const DEFAULT_COLOR = 0x95a5a6; // gray
 

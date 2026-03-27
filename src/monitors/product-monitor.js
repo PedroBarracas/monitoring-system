@@ -291,6 +291,13 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
       const successCount = config.targets.length - errors.length;
       const failCount = errors.length;
 
+      const summaryLines = [
+        `Successful: ${successCount}/${config.targets.length}`,
+        `Failed: ${failCount}/${config.targets.length}`,
+        `Alerts sent: ${alertsSent}`,
+        `Duration: ${durationSec}s`,
+      ];
+
       if (failCount > 0) {
         const errorLines = errors.map((e) => {
           const sep = e.indexOf(': ');
@@ -298,18 +305,16 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
           const msg = sep > -1 ? e.slice(sep + 2) : 'Unknown error';
           return `${url} → ${msg}`;
         });
-
-        await errorNotifier.sendAlert({
-          eventType: 'ERROR',
-          title: `⚠️ Cycle summary: ${successCount} OK / ${failCount} failed`,
-          body: [
-            `Successful: ${successCount}/${config.targets.length}`,
-            `Failed: ${failCount}/${config.targets.length}`,
-            `Duration: ${durationSec}s`,
-            `\nErrors:\n${errorLines.join('\n')}`,
-          ].join('\n'),
-        });
+        summaryLines.push(`\nErrors:\n${errorLines.join('\n')}`);
       }
+
+      await errorNotifier.sendAlert({
+        eventType: failCount > 0 ? 'ERROR' : 'CYCLE_SUMMARY',
+        title: failCount > 0
+          ? `⚠️ Cycle summary: ${successCount} OK / ${failCount} failed`
+          : `✅ Cycle complete: ${successCount}/${config.targets.length} OK`,
+        body: summaryLines.join('\n'),
+      });
 
       logger.info(`Cycle complete: ${successCount} OK, ${failCount} failed, ${alertsSent} alerts in ${durationSec}s`);
 
