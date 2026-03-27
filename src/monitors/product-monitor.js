@@ -118,6 +118,10 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
 
       const extractedIds = new Set(products.map((p) => p.productId));
 
+      // First-run detection: if the store has no products in DB yet, this is an
+      // initial seed — skip notifications to avoid flooding on new targets.
+      const isFirstRun = productRepo.countBySource(target.url) === 0;
+
       for (const product of products) {
         const existing = productRepo.getProduct(product.sourceUrl, product.productId);
         const priceDisplay = product.price ? `${product.price}${product.currency ? ' ' + product.currency : ''}` : null;
@@ -133,7 +137,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             currency: product.currency,
           });
 
-          if (!target.skipNotify) {
+          if (!isFirstRun) {
             alertRepo.logAlert('new_product', {
               productId: product.productId,
               title: product.title,
@@ -158,7 +162,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             if (!ok) logger.warn(`Failed to send new product alert for ${product.productId}`);
             sent++;
           } else {
-            logger.info(`Skipping notification for new product: ${product.title} (skipNotify)`);
+            logger.info(`Skipping notification for new product: ${product.title} (first run)`);
           }
         } else if (existing.removed) {
           // Product was previously removed and is back on the page

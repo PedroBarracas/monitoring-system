@@ -31,7 +31,7 @@ describe('product-monitor', () => {
       getProduct: jest.fn(),
       insertProduct: jest.fn(),
       updateProduct: jest.fn(),
-      countBySource: jest.fn().mockReturnValue(0),
+      countBySource: jest.fn().mockReturnValue(5),
       getProductsBySource: jest.fn().mockReturnValue([]),
       markRemoved: jest.fn(),
       reactivateProduct: jest.fn(),
@@ -56,13 +56,14 @@ describe('product-monitor', () => {
     expect(monitor.name).toBe('product-monitor');
   });
 
-  test('first run inserts all products and sends alerts', async () => {
+  test('first run inserts all products silently (no alerts)', async () => {
     mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
     mockProductRepo.getProduct.mockReturnValue(undefined);
+    mockProductRepo.countBySource.mockReturnValue(0);
 
     const result = await monitor.run();
 
-    expect(result.alertsSent).toBe(3);
+    expect(result.alertsSent).toBe(0);
     expect(result.errors).toEqual([]);
 
     expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(3);
@@ -81,13 +82,7 @@ describe('product-monitor', () => {
       })
     );
 
-    expect(mockNotifier.sendAlert).toHaveBeenCalledTimes(3);
-    expect(mockNotifier.sendAlert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: 'NEW_PRODUCT',
-        title: '🛒 New product added: Widget Alpha',
-      })
-    );
+    expect(mockNotifier.sendAlert).not.toHaveBeenCalled();
   });
 
   test('no alerts on second run with same products', async () => {
@@ -513,52 +508,42 @@ describe('product-monitor', () => {
     });
   });
 
-  describe('skipNotify', () => {
-    test('skips notifications but still inserts products when skipNotify is true', async () => {
-      const skipConfig = {
-        targets: [{
-          url: 'https://shop.example.com/new-arrivals',
-          selectors: DEFAULT_PRODUCT_SELECTORS,
-          extractor: 'css',
-          dynamic: false,
-          skipNotify: true,
-        }],
-        concurrency: 5,
-      };
-
+  describe('first-run silent seeding', () => {
+    test('skips notifications on first run when store has no products in DB', async () => {
       mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
       mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
 
-      const m = createProductMonitor({
-        productRepo: mockProductRepo,
-        alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
-        errorNotifier: mockErrorNotifier,
-        httpClient: mockHttpClient,
-        config: skipConfig,
-        logger: mockLogger,
-      });
-
-      const result = await m.run();
+      const result = await monitor.run();
 
       // Products are inserted into DB
       expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(3);
-      // No notifications sent
+      // No notifications sent (first run)
       expect(mockNotifier.sendAlert).not.toHaveBeenCalled();
       expect(mockAlertRepo.logAlert).not.toHaveBeenCalled();
       expect(result.alertsSent).toBe(0);
     });
 
-    test('sends notifications normally when skipNotify is absent', async () => {
-      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
-      mockProductRepo.getProduct.mockReturnValue(undefined);
+    test('sends notifications for new products when store already has products in DB', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML_WITH_NEW_ITEM);
+      mockProductRepo.getProduct
+        .mockReturnValueOnce({ in_stock: 1 })
+        .mockReturnValueOnce({ in_stock: 1 })
+        .mockReturnValueOnce({ in_stock: 1 })
+        .mockReturnValueOnce(undefined);
+      mockProductRepo.countBySource.mockReturnValue(3);
 
       const result = await monitor.run();
 
-      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(3);
-      expect(mockNotifier.sendAlert).toHaveBeenCalledTimes(3);
-      expect(mockAlertRepo.logAlert).toHaveBeenCalledTimes(3);
-      expect(result.alertsSent).toBe(3);
+      // Only the new product triggers a notification
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.sendAlert).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.sendAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'NEW_PRODUCT',
+          title: '🛒 New product added: Widget Delta',
+        })
+      );
     });
   });
 
