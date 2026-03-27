@@ -1,13 +1,9 @@
-const fs = require('fs');
-const path = require('path');
 const cssExtractor = require('../extractors/css-extractor');
 const jsonldExtractor = require('../extractors/jsonld-extractor');
 const heuristicExtractor = require('../extractors/heuristic-extractor');
 const { createLimiter } = require('../utils/concurrency');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
 const { checkDetailPageStock } = require('../utils/detail-stock-checker');
-
-const TARGETS_PATH = path.join(__dirname, '..', '..', 'data', 'product-targets.json');
 
 function resolveUrl(url, base) {
   if (!url) return base;
@@ -308,28 +304,6 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             `\nErrors:\n${errorLines.join('\n')}`,
           ].join('\n'),
         });
-      }
-
-      // Auto-remove skipNotify from targets file after first successful run
-      const skippedTargets = config.targets.filter((t) => t.skipNotify);
-      if (skippedTargets.length > 0) {
-        try {
-          const raw = fs.readFileSync(TARGETS_PATH, 'utf8');
-          const targets = JSON.parse(raw);
-          let changed = false;
-          for (const t of targets) {
-            if (t.skipNotify) {
-              delete t.skipNotify;
-              changed = true;
-            }
-          }
-          if (changed) {
-            fs.writeFileSync(TARGETS_PATH, JSON.stringify(targets, null, 2) + '\n', 'utf8');
-            logger.info(`Removed skipNotify from ${skippedTargets.length} target(s) in product-targets.json`);
-          }
-        } catch (err) {
-          logger.warn(`Failed to auto-remove skipNotify from targets file: ${err.message}`);
-        }
       }
 
       return { alertsSent, errors };
