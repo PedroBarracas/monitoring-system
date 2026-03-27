@@ -122,9 +122,9 @@ describe('loadConfig', () => {
     expect(config.products.enabled).toBe(false);
   });
 
-  test('products.concurrency defaults to 5', () => {
+  test('products.concurrency defaults to 15', () => {
     const config = loadConfig(telegramEnv);
-    expect(config.products.concurrency).toBe(5);
+    expect(config.products.concurrency).toBe(15);
   });
 
   test('products.concurrency reads from PRODUCT_CONCURRENCY', () => {

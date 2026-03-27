@@ -13,14 +13,54 @@ const EVENT_COLORS = {
 };
 const DEFAULT_COLOR = 0x95a5a6; // gray
 
+const WEBHOOK_TIMEOUT = 10000;
+const WEBHOOK_MAX_RETRIES = 3;
+
 function createDiscordService({ webhookUrl, httpClient, logger }) {
   async function postWebhook(payload) {
-    const response = await httpClient.fetchHtml(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return response;
+    let lastError;
+    for (let attempt = 0; attempt <= WEBHOOK_MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT);
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (response.status === 429) {
+          const retryAfter = parseFloat(response.headers.get('retry-after') || '5');
+          const delay = Math.ceil(retryAfter * 1000);
+          logger.warn(`Discord rate limited, waiting ${delay}ms (attempt ${attempt + 1}/${WEBHOOK_MAX_RETRIES + 1})...`);
+          if (attempt < WEBHOOK_MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          throw new Error(`Discord rate limited after ${WEBHOOK_MAX_RETRIES + 1} attempts`);
+        }
+
+        if (!response.ok) {
+          throw new Error(`Discord webhook returned HTTP ${response.status}`);
+        }
+
+        return response;
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        // Only retry on network/timeout errors, not on HTTP errors or exhausted rate limits
+        const isNetworkError = err.name === 'AbortError' || err.name === 'TypeError' || err.message.includes('fetch failed');
+        if (!isNetworkError || attempt >= WEBHOOK_MAX_RETRIES) {
+          throw err;
+        }
+        const delay = 1000 * (attempt + 1);
+        logger.warn(`Discord webhook failed, retrying in ${delay}ms (attempt ${attempt + 1}/${WEBHOOK_MAX_RETRIES})...`);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    throw lastError;
   }
 
   async function sendMessage(text) {

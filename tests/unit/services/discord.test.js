@@ -8,11 +8,17 @@ describe('discord service', () => {
   const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
   let mockHttpClient;
   let discord;
+  let fetchSpy;
 
   beforeEach(() => {
     mockHttpClient = {
       fetchHtml: jest.fn().mockResolvedValue(undefined),
     };
+    fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+    });
     discord = createDiscordService({
       webhookUrl: 'https://discord.com/api/webhooks/123/abc',
       httpClient: mockHttpClient,
@@ -20,11 +26,20 @@ describe('discord service', () => {
     });
   });
 
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function getLastPayload() {
+    const call = fetchSpy.mock.calls[0];
+    return JSON.parse(call[1].body);
+  }
+
   describe('sendMessage', () => {
     test('sends plain text via webhook', async () => {
       const result = await discord.sendMessage('Hello Discord');
       expect(result).toBe(true);
-      expect(mockHttpClient.fetchHtml).toHaveBeenCalledWith(
+      expect(fetchSpy).toHaveBeenCalledWith(
         'https://discord.com/api/webhooks/123/abc',
         expect.objectContaining({
           method: 'POST',
@@ -37,12 +52,12 @@ describe('discord service', () => {
       const longText = 'x'.repeat(3000);
       await discord.sendMessage(longText);
 
-      const body = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body);
+      const body = getLastPayload();
       expect(body.content.length).toBe(2000);
     });
 
     test('returns false on error', async () => {
-      mockHttpClient.fetchHtml.mockRejectedValue(new Error('Network error'));
+      fetchSpy.mockRejectedValue(new Error('Network error'));
       const result = await discord.sendMessage('test');
       expect(result).toBe(false);
       expect(mockLogger.error).toHaveBeenCalled();
@@ -57,7 +72,7 @@ describe('discord service', () => {
         body: 'Old: $50,000\nNew: $55,000\nChange: +10.00%',
       });
 
-      const payload = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body);
+      const payload = getLastPayload();
       expect(payload.embeds).toHaveLength(1);
 
       const embed = payload.embeds[0];
@@ -74,7 +89,7 @@ describe('discord service', () => {
         body: 'URL: https://shop.example.com/widget\nStatus: In Stock',
       });
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.fields).toHaveLength(2);
       expect(embed.fields[0]).toEqual(
         expect.objectContaining({ name: 'URL', value: 'https://shop.example.com/widget' })
@@ -91,7 +106,7 @@ describe('discord service', () => {
         body: 'URL: https://news.example.com/article-1',
       });
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.url).toBe('https://news.example.com/article-1');
     });
 
@@ -102,7 +117,7 @@ describe('discord service', () => {
         body: 'URL: not-a-url',
       });
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.url).toBeUndefined();
     });
 
@@ -116,9 +131,9 @@ describe('discord service', () => {
       ];
 
       for (const [eventType, expectedColor] of types) {
-        mockHttpClient.fetchHtml.mockClear();
+        fetchSpy.mockClear();
         await discord.sendAlert({ eventType, title: 'test', body: 'test: value' });
-        const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+        const embed = getLastPayload().embeds[0];
         expect(embed.color).toBe(expectedColor);
       }
     });
@@ -130,7 +145,7 @@ describe('discord service', () => {
         body: 'test: value',
       });
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.color).toBe(0x95a5a6);
     });
 
@@ -141,12 +156,12 @@ describe('discord service', () => {
         body: 'body: text',
       });
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.title.length).toBeLessThanOrEqual(256);
     });
 
     test('returns false on API error', async () => {
-      mockHttpClient.fetchHtml.mockRejectedValue(new Error('HTTP 400'));
+      fetchSpy.mockResolvedValue({ ok: false, status: 500, headers: new Map() });
       const result = await discord.sendAlert({
         eventType: 'TEST',
         title: 'test',
@@ -165,9 +180,40 @@ describe('discord service', () => {
       });
       const after = new Date().toISOString();
 
-      const embed = JSON.parse(mockHttpClient.fetchHtml.mock.calls[0][1].body).embeds[0];
+      const embed = getLastPayload().embeds[0];
       expect(embed.timestamp >= before).toBe(true);
       expect(embed.timestamp <= after).toBe(true);
+    });
+
+    test('retries on 429 rate limit and respects retry-after header', async () => {
+      const headers = new Map([['retry-after', '0.1']]);
+      fetchSpy
+        .mockResolvedValueOnce({ ok: false, status: 429, headers })
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: new Map() });
+
+      const result = await discord.sendAlert({
+        eventType: 'TEST',
+        title: 'test',
+        body: 'body: text',
+      });
+
+      expect(result).toBe(true);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('rate limited'));
+    });
+
+    test('returns false after exhausting rate limit retries', async () => {
+      const headers = new Map([['retry-after', '0.01']]);
+      fetchSpy.mockResolvedValue({ ok: false, status: 429, headers });
+
+      const result = await discord.sendAlert({
+        eventType: 'TEST',
+        title: 'test',
+        body: 'body: text',
+      });
+
+      expect(result).toBe(false);
+      expect(fetchSpy).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
     });
   });
 

@@ -4,6 +4,7 @@ const jsonldExtractor = require('../src/extractors/jsonld-extractor');
 const heuristicExtractor = require('../src/extractors/heuristic-extractor');
 const { createHttpClient } = require('../src/services/http-client');
 const { checkDetailPageStock } = require('../src/utils/detail-stock-checker');
+const { createLimiter } = require('../src/utils/concurrency');
 
 const TARGETS_PATH = path.join(__dirname, '..', 'data', 'product-targets.json');
 const OUTPUT_PATH = path.join(__dirname, '..', 'data', 'fetch-results.json');
@@ -104,19 +105,24 @@ async function fetchTarget(target) {
 
 async function main() {
   const targets = JSON.parse(fs.readFileSync(TARGETS_PATH, 'utf8'));
-  logger.info(`Fetching ${targets.length} targets...`);
+  const CONCURRENCY = parseInt(process.env.FETCH_CONCURRENCY, 10) || 15;
+  logger.info(`Fetching ${targets.length} targets (concurrency: ${CONCURRENCY})...`);
 
-  const CONCURRENCY = 5;
-  const results = [];
+  const limit = createLimiter(CONCURRENCY);
   let completed = 0;
 
-  for (let i = 0; i < targets.length; i += CONCURRENCY) {
-    const batch = targets.slice(i, i + CONCURRENCY);
-    const batchResults = await Promise.all(batch.map((t) => fetchTarget(t)));
-    results.push(...batchResults);
-    completed += batch.length;
-    logger.info(`Progress: ${completed}/${targets.length}`);
-  }
+  const results = await Promise.all(
+    targets.map((t) =>
+      limit(async () => {
+        const result = await fetchTarget(t);
+        completed++;
+        if (completed % 25 === 0 || completed === targets.length) {
+          logger.info(`Progress: ${completed}/${targets.length}`);
+        }
+        return result;
+      })
+    )
+  );
 
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(results, null, 2), 'utf8');
   logger.info(`Results written to ${OUTPUT_PATH}`);

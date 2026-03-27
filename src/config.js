@@ -41,7 +41,7 @@ function loadConfig(env = process.env) {
     products: {
       enabled: env.PRODUCTS_ENABLED !== 'false',
       targets: parseJsonArray(env.PRODUCT_TARGETS) || loadTargetsFile(),
-      concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 5,
+      concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 15,
     },
     // news: {
     //   enabled: env.NEWS_ENABLED !== 'false',
