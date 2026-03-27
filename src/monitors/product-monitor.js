@@ -273,9 +273,13 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
     name: 'product-monitor',
 
     async run() {
+      const startTime = Date.now();
+
       const results = await Promise.all(
         config.targets.map((target) => limit(() => processTarget(target)))
       );
+
+      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
       let alertsSent = 0;
       const errors = [];
@@ -301,10 +305,13 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
           body: [
             `Successful: ${successCount}/${config.targets.length}`,
             `Failed: ${failCount}/${config.targets.length}`,
+            `Duration: ${durationSec}s`,
             `\nErrors:\n${errorLines.join('\n')}`,
           ].join('\n'),
         });
       }
+
+      logger.info(`Cycle complete: ${successCount} OK, ${failCount} failed, ${alertsSent} alerts in ${durationSec}s`);
 
       return { alertsSent, errors };
     },
