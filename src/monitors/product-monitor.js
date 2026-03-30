@@ -303,12 +303,23 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
       ];
 
       if (failCount > 0) {
-        const errorLines = errors.map((e) => {
+        const grouped = {};
+        for (const e of errors) {
           const sep = e.indexOf(': ');
           const url = sep > -1 ? e.slice(0, sep) : e;
           const msg = sep > -1 ? e.slice(sep + 2) : 'Unknown error';
-          return `${url} → ${msg}`;
-        });
+          let siteName;
+          try {
+            siteName = new URL(url).hostname.replace(/^www\./, '').split('.')[0];
+          } catch {
+            siteName = url;
+          }
+          if (!grouped[msg]) grouped[msg] = [];
+          grouped[msg].push(siteName);
+        }
+        const errorLines = Object.entries(grouped).map(([msg, sites]) =>
+          `${msg} → ${sites.length} occurrence${sites.length > 1 ? 's' : ''} (${sites.join(', ')})`
+        );
         summaryLines.push(`\nErrors:\n${errorLines.join('\n')}`);
       }
 
