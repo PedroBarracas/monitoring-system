@@ -308,14 +308,17 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
           const sep = e.indexOf(': ');
           const url = sep > -1 ? e.slice(0, sep) : e;
           const msg = sep > -1 ? e.slice(sep + 2) : 'Unknown error';
+          // Strip embedded URLs from error message to group by error type
+          // e.g. "HTTP 403 from https://example.com" → "HTTP 403"
+          const cleanMsg = msg.replace(/\s+from\s+https?:\/\/\S+/, '').replace(/:\s*$/, '').trim();
           let siteName;
           try {
             siteName = new URL(url).hostname.replace(/^www\./, '').split('.')[0];
           } catch {
             siteName = url;
           }
-          if (!grouped[msg]) grouped[msg] = [];
-          grouped[msg].push(siteName);
+          if (!grouped[cleanMsg]) grouped[cleanMsg] = [];
+          grouped[cleanMsg].push(siteName);
         }
         const errorLines = Object.entries(grouped).map(([msg, sites]) =>
           `${msg} → ${sites.length} occurrence${sites.length > 1 ? 's' : ''} (${sites.join(', ')})`
