@@ -20,6 +20,8 @@ const OOS_KEYWORDS = [
   'en rupture',
   'fuera de stock',
   'exhausto',
+  'Ausverkauft',
+  'Derzeit Ausverkaufts'
 ];
 
 module.exports = OOS_KEYWORDS;
