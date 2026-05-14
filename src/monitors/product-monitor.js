@@ -30,6 +30,56 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
     }
   }
 
+  // Parse the optional proxy URL into Playwright's proxy-config shape — used as
+  // a fallback for dynamic targets that get blocked.
+  let playwrightProxy = null;
+  if (config.proxyUrl) {
+    try {
+      const u = new URL(config.proxyUrl);
+      playwrightProxy = {
+        server: `${u.protocol}//${u.host}`,
+        username: u.username ? decodeURIComponent(u.username) : undefined,
+        password: u.password ? decodeURIComponent(u.password) : undefined,
+      };
+    } catch {
+      logger.warn('Invalid proxy URL — Playwright dynamic targets will not use a proxy');
+    }
+  }
+
+  // Render a page with Playwright, optionally through the proxy. Returns the
+  // HTTP status (for block detection) and the rendered HTML.
+  async function renderWithPlaywright(url, renderWait, useProxy) {
+    const browser = await chromium.launch({
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-http2',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+      ],
+      ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
+    });
+    try {
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        extraHTTPHeaders: {
+          'sec-ch-ua': '"Chromium";v="131", "Google Chrome";v="131", "Not-A.Brand";v="99"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+        },
+      });
+      const page = await context.newPage();
+      // Deterministic render: the same wait strategy every cycle so the DOM
+      // snapshot doesn't vary. `load` fires once and reliably; the fixed settle
+      // lets client-side grids finish.
+      const response = await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+      await page.waitForTimeout(renderWait || 5000);
+      return { status: response ? response.status() : null, html: await page.content() };
+    } finally {
+      await browser.close();
+    }
+  }
+
   function extractProducts(html, target) {
     const mode = target.extractor || 'auto';
 
@@ -62,40 +112,25 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
           logger.warn(`Skipping dynamic target ${target.url} — Playwright unavailable`);
           return { sent, errs };
         }
-        let browser;
         try {
-          browser = await chromium.launch({
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-http2',
-              '--disable-blink-features=AutomationControlled',
-              '--disable-dev-shm-usage',
-            ],
-          });
-          const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            extraHTTPHeaders: {
-              'sec-ch-ua': '"Chromium";v="131", "Google Chrome";v="131", "Not-A.Brand";v="99"',
-              'sec-ch-ua-mobile': '?0',
-              'sec-ch-ua-platform': '"Windows"',
-            },
-          });
-          const page = await context.newPage();
-          // Deterministic render: the same wait strategy every cycle so the DOM
-          // snapshot doesn't vary. `networkidle` is flaky on JS-filtered listing
-          // pages — a timed-out networkidle vs a clean one captured different
-          // product sets, churning products in/out of the DB. `load` fires once
-          // and reliably; the fixed settle lets client-side grids finish.
-          await page.goto(target.url, { waitUntil: 'load', timeout: 30000 });
-          await page.waitForTimeout(target.renderWait || 5000);
-          html = await page.content();
+          let result;
+          try {
+            result = await renderWithPlaywright(target.url, target.renderWait, false);
+            // Blocked? Fall back to the proxy (fresh IP), like the HTTP client does.
+            if (playwrightProxy && [403, 429, 503].includes(result.status)) {
+              logger.warn(`HTTP ${result.status} from ${target.url} (Playwright) — retrying via proxy`);
+              result = await renderWithPlaywright(target.url, target.renderWait, true);
+            }
+          } catch (err) {
+            if (!playwrightProxy) throw err;
+            logger.warn(`Playwright failed for ${target.url} (${err.message}) — retrying via proxy`);
+            result = await renderWithPlaywright(target.url, target.renderWait, true);
+          }
+          html = result.html;
         } catch (err) {
           logger.error(`Playwright failed for ${target.url}`, { error: err.message });
           errs.push(`${target.url}: ${err.message}`);
           return { sent, errs };
-        } finally {
-          if (browser) await browser.close();
         }
       } else {
         html = await httpClient.fetchHtml(target.url);

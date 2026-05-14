@@ -159,6 +159,12 @@ describe('loadConfig', () => {
     expect(config.products.eurRates.EUR).toBe(1);
   });
 
+  test('products.proxyUrl is empty by default and reads from PROXY_URL', () => {
+    expect(loadConfig(telegramEnv).products.proxyUrl).toBe('');
+    expect(loadConfig({ ...telegramEnv, PROXY_URL: 'http://user:pass@host:1' }).products.proxyUrl)
+      .toBe('http://user:pass@host:1');
+  });
+
   test('channel selection is case-insensitive', () => {
     const config = loadConfig({
       NOTIFICATION_CHANNEL: 'DISCORD',

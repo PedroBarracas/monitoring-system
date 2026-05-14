@@ -65,6 +65,7 @@ cp .env.example .env
 | `CRON_EXPRESSION` | Cron schedule expression | `*/30 * * * *` |
 | `DB_PATH` | SQLite database path | `./data/monitoring.db` |
 | `LOG_LEVEL` | Logging level (`debug`, `info`, `warn`, `error`) | `info` |
+| `PROXY_URL` | Optional proxy (`http://user:pass@host:port`). Store fetches that hit `403`/`429`/`503` or a network error are retried through it; notification traffic is not proxied. Unset = disabled. | — |
 
 ### 2. Product targets
 

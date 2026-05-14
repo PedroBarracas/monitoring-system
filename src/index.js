@@ -30,6 +30,17 @@ const httpClient = createHttpClient({
   timeout: 15000,
 });
 
+// Store fetches retry through the proxy on blocks; notification traffic
+// (Telegram/Discord) stays on the direct client. Falls back to the direct
+// client when no proxy is configured.
+const productHttpClient = config.products.proxyUrl
+  ? createHttpClient({
+      logger: createLogger('http-proxy', { level: config.logLevel }),
+      timeout: 15000,
+      proxyUrl: config.products.proxyUrl,
+    })
+  : httpClient;
+
 // Initialize notification service based on config
 let notifier;
 let errorNotifier;
@@ -90,7 +101,7 @@ if (config.products.enabled && config.products.targets.length > 0) {
       alertRepo,
       notifier,
       errorNotifier,
-      httpClient,
+      httpClient: productHttpClient,
       config: config.products,
       logger: createLogger('product-monitor', { level: config.logLevel }),
     })

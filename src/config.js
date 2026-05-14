@@ -70,6 +70,9 @@ function loadConfig(env = process.env) {
       // Static currency→EUR rate table for the price line in notifications.
       // CURRENCY_RATES_EUR (JSON object) overrides individual default rates.
       eurRates: { ...DEFAULT_EUR_RATES, ...parseJsonObject(env.CURRENCY_RATES_EUR) },
+      // Optional proxy. Store fetches that hit 403/429/503 (or a network error)
+      // are retried through it; leave PROXY_URL unset to disable.
+      proxyUrl: env.PROXY_URL || '',
     },
     // news: {
     //   enabled: env.NEWS_ENABLED !== 'false',
