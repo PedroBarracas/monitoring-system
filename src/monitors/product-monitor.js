@@ -15,6 +15,16 @@ function resolveUrl(url, base) {
   }
 }
 
+// Reject if `promise` doesn't settle within `ms` — a hard bound for operations
+// (like Playwright's browser.close()) that can otherwise hang indefinitely.
+function withTimeout(promise, ms, label) {
+  let timer;
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
+}
+
 function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
   const missingThreshold = config.removalThreshold || 3;
@@ -57,6 +67,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
         '--disable-blink-features=AutomationControlled',
         '--disable-dev-shm-usage',
       ],
+      timeout: 30000, // bound the launch itself
       ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
     });
     try {
@@ -76,7 +87,16 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
       await page.waitForTimeout(renderWait || 5000);
       return { status: response ? response.status() : null, html: await page.content() };
     } finally {
-      await browser.close();
+      // A wedged browser must not hang the cycle: give close() 10s, then
+      // force-kill the process so the slot is always released.
+      await withTimeout(browser.close(), 10000, 'browser.close').catch(() => {
+        logger.warn(`browser.close() hung for ${url} — force-killing the browser process`);
+        try {
+          browser.process()?.kill('SIGKILL');
+        } catch {
+          /* process already gone */
+        }
+      });
     }
   }
 

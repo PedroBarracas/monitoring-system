@@ -2,27 +2,40 @@ const cron = require('node-cron');
 
 function createScheduler({ monitors, cronExpression, logger }) {
   let task = null;
+  let running = false;
 
   async function runOnce() {
-    logger.info(`Starting monitoring cycle with ${monitors.length} monitor(s)`);
-
-    for (const monitor of monitors) {
-      try {
-        logger.info(`Running monitor: ${monitor.name}`);
-        const result = await monitor.run();
-        logger.info(`Monitor ${monitor.name} completed`, {
-          alertsSent: result.alertsSent,
-          errors: result.errors.length,
-        });
-      } catch (err) {
-        logger.error(`Monitor ${monitor.name} failed`, {
-          message: err.message,
-          stack: err.stack,
-        });
-      }
+    // Overlap guard: if a cycle is still running when the next tick fires (or
+    // runOnce is called again), skip rather than stacking concurrent cycles.
+    if (running) {
+      logger.warn('Previous monitoring cycle still running — skipping this tick');
+      return;
     }
+    running = true;
 
-    logger.info('Monitoring cycle complete');
+    try {
+      logger.info(`Starting monitoring cycle with ${monitors.length} monitor(s)`);
+
+      for (const monitor of monitors) {
+        try {
+          logger.info(`Running monitor: ${monitor.name}`);
+          const result = await monitor.run();
+          logger.info(`Monitor ${monitor.name} completed`, {
+            alertsSent: result.alertsSent,
+            errors: result.errors.length,
+          });
+        } catch (err) {
+          logger.error(`Monitor ${monitor.name} failed`, {
+            message: err.message,
+            stack: err.stack,
+          });
+        }
+      }
+
+      logger.info('Monitoring cycle complete');
+    } finally {
+      running = false;
+    }
   }
 
   return {

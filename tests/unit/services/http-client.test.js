@@ -91,9 +91,13 @@ describe('http-client', () => {
       const html = await proxied.fetchHtml('https://blocked.example.com');
       expect(html).toContain('ok');
       expect(undici.fetch).toHaveBeenCalledTimes(2);
-      // the direct attempt has no dispatcher; the retry goes through the proxy
-      expect(undici.fetch.mock.calls[0][1]).not.toHaveProperty('dispatcher');
-      expect(undici.fetch.mock.calls[1][1]).toHaveProperty('dispatcher');
+      // both attempts carry a dispatcher; the retry switches to a different
+      // one (the proxy) rather than reusing the direct dispatcher
+      const directDispatcher = undici.fetch.mock.calls[0][1].dispatcher;
+      const retryDispatcher = undici.fetch.mock.calls[1][1].dispatcher;
+      expect(directDispatcher).toBeDefined();
+      expect(retryDispatcher).toBeDefined();
+      expect(retryDispatcher).not.toBe(directDispatcher);
     });
 
     test('does not retry a 403 when no proxy is configured', async () => {
