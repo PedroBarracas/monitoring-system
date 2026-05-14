@@ -60,6 +60,7 @@ cp .env.example .env
 | `DISCORD_WEBHOOK_URL` | Discord webhook URL (required if channel is discord) | — |
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
+| `PRODUCT_REMOVAL_THRESHOLD` | Consecutive cycles a product must be absent before it's marked removed (removal hysteresis — absorbs flaky scrapes) | `3` |
 | `CRON_EXPRESSION` | Cron schedule expression | `*/30 * * * *` |
 | `DB_PATH` | SQLite database path | `./data/monitoring.db` |
 | `LOG_LEVEL` | Logging level (`debug`, `info`, `warn`, `error`) | `info` |
@@ -92,6 +93,7 @@ Define targets in `PRODUCT_TARGETS` env var or in `data/product-targets.json`. E
 | `extractor` | Extraction strategy: `jsonld`, `css`, or `heuristic` | No (auto-detected) |
 | `selectors` | CSS selectors for product fields (used with `css` extractor) | No |
 | `dynamic` | Use Playwright for JS-rendered pages | No (`false`) |
+| `renderWait` | Milliseconds to wait after page load for JS-rendered grids to settle (`dynamic` targets only) | No (`5000`) |
 | `detailStock` | Follow product links to verify stock on detail pages | No (`false`) |
 
 ## Running

@@ -20,6 +20,7 @@ function runMigrations(db) {
       currency        TEXT,
       first_seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
       removed         INTEGER NOT NULL DEFAULT 0,
+      missing_count   INTEGER NOT NULL DEFAULT 0,
       last_checked_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(source_url, product_id)
     );
@@ -43,10 +44,15 @@ function runMigrations(db) {
     );
   `);
 
-  // Add 'removed' column to existing products table
+  // Backfill columns added after the products table shipped.
   const cols = db.prepare("PRAGMA table_info('products')").all();
   if (!cols.some((c) => c.name === 'removed')) {
     db.exec("ALTER TABLE products ADD COLUMN removed INTEGER NOT NULL DEFAULT 0");
+  }
+  // Consecutive cycles a product has been absent from extraction. Used for
+  // removal hysteresis so a single flaky scrape doesn't mark products removed.
+  if (!cols.some((c) => c.name === 'missing_count')) {
+    db.exec("ALTER TABLE products ADD COLUMN missing_count INTEGER NOT NULL DEFAULT 0");
   }
 }
 

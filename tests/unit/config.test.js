@@ -132,6 +132,16 @@ describe('loadConfig', () => {
     expect(config.products.concurrency).toBe(10);
   });
 
+  test('products.removalThreshold defaults to 3', () => {
+    const config = loadConfig(telegramEnv);
+    expect(config.products.removalThreshold).toBe(3);
+  });
+
+  test('products.removalThreshold reads from PRODUCT_REMOVAL_THRESHOLD', () => {
+    const config = loadConfig({ ...telegramEnv, PRODUCT_REMOVAL_THRESHOLD: '5' });
+    expect(config.products.removalThreshold).toBe(5);
+  });
+
   test('channel selection is case-insensitive', () => {
     const config = loadConfig({
       NOTIFICATION_CHANNEL: 'DISCORD',

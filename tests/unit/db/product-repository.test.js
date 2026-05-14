@@ -87,4 +87,84 @@ describe('product-repository', () => {
     expect(repo.getProduct('https://shop1.com', 'prod-001').title).toBe('From Shop 1');
     expect(repo.getProduct('https://shop2.com', 'prod-001').title).toBe('From Shop 2');
   });
+
+  describe('removal hysteresis', () => {
+    const seed = () =>
+      repo.insertProduct({
+        sourceUrl: 'https://shop.com',
+        productId: 'prod-001',
+        productUrl: '',
+        title: 'Widget',
+        inStock: 1,
+      });
+
+    test('new products start with missing_count 0 and removed 0', () => {
+      seed();
+      const row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.missing_count).toBe(0);
+      expect(row.removed).toBe(0);
+    });
+
+    test('markMissing increments missing_count without removing below threshold', () => {
+      seed();
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      let row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.missing_count).toBe(1);
+      expect(row.removed).toBe(0);
+
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.missing_count).toBe(2);
+      expect(row.removed).toBe(0);
+    });
+
+    test('markMissing sets removed once threshold is reached', () => {
+      seed();
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      const row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.missing_count).toBe(3);
+      expect(row.removed).toBe(1);
+    });
+
+    test('updateProduct resets missing_count (a sighting clears the streak)', () => {
+      seed();
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      repo.markMissing('https://shop.com', 'prod-001', 3);
+      repo.updateProduct({
+        sourceUrl: 'https://shop.com',
+        productId: 'prod-001',
+        inStock: 1,
+        title: 'Widget',
+      });
+      const row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.missing_count).toBe(0);
+      expect(row.removed).toBe(0);
+    });
+
+    test('reactivateProduct clears removed flag and missing_count', () => {
+      seed();
+      repo.markMissing('https://shop.com', 'prod-001', 2);
+      repo.markMissing('https://shop.com', 'prod-001', 2);
+      expect(repo.getProduct('https://shop.com', 'prod-001').removed).toBe(1);
+
+      repo.reactivateProduct({
+        sourceUrl: 'https://shop.com',
+        productId: 'prod-001',
+        inStock: 1,
+        title: 'Widget',
+      });
+      const row = repo.getProduct('https://shop.com', 'prod-001');
+      expect(row.removed).toBe(0);
+      expect(row.missing_count).toBe(0);
+    });
+
+    test('removed products are excluded from countBySource and getProductsBySource', () => {
+      seed();
+      repo.markMissing('https://shop.com', 'prod-001', 1); // threshold 1 → removed immediately
+      expect(repo.countBySource('https://shop.com')).toBe(0);
+      expect(repo.getProductsBySource('https://shop.com')).toHaveLength(0);
+    });
+  });
 });

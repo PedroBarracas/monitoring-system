@@ -33,7 +33,7 @@ describe('product-monitor', () => {
       updateProduct: jest.fn(),
       countBySource: jest.fn().mockReturnValue(5),
       getProductsBySource: jest.fn().mockReturnValue([]),
-      markRemoved: jest.fn(),
+      markMissing: jest.fn(),
       reactivateProduct: jest.fn(),
     };
     mockAlertRepo = { logAlert: jest.fn() };
@@ -542,6 +542,60 @@ describe('product-monitor', () => {
         expect.objectContaining({
           eventType: 'NEW_PRODUCT',
           title: '🛒 New product added: Widget Delta',
+        })
+      );
+    });
+  });
+
+  describe('removal hysteresis', () => {
+    // PRODUCT_HTML extracts prod-001/002/003; prod-099 is in the DB but absent
+    // from the page, so it counts as "missing" this cycle.
+    const presentInStock = () =>
+      mockProductRepo.getProduct
+        .mockReturnValueOnce({ in_stock: 1 })
+        .mockReturnValueOnce({ in_stock: 0 })
+        .mockReturnValueOnce({ in_stock: 1 });
+
+    test('a product missing for the first time is not removed, just counted', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      presentInStock();
+      mockProductRepo.getProductsBySource.mockReturnValue([
+        { product_id: 'prod-099', title: 'Gone Widget', missing_count: 0 },
+      ]);
+
+      await monitor.run();
+
+      expect(mockProductRepo.markMissing).toHaveBeenCalledWith(
+        'https://shop.example.com/new-arrivals',
+        'prod-099',
+        3
+      );
+      const removedAlert = mockAlertRepo.logAlert.mock.calls.find(
+        (c) => c[0] === 'products_removed'
+      );
+      expect(removedAlert).toBeUndefined();
+    });
+
+    test('a product missing long enough crosses the threshold and is removed', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      presentInStock();
+      // missing_count 2 → this cycle's markMissing makes it 3, hitting threshold 3
+      mockProductRepo.getProductsBySource.mockReturnValue([
+        { product_id: 'prod-099', title: 'Gone Widget', missing_count: 2 },
+      ]);
+
+      await monitor.run();
+
+      expect(mockProductRepo.markMissing).toHaveBeenCalledWith(
+        'https://shop.example.com/new-arrivals',
+        'prod-099',
+        3
+      );
+      expect(mockAlertRepo.logAlert).toHaveBeenCalledWith(
+        'products_removed',
+        expect.objectContaining({
+          count: 1,
+          products: [{ productId: 'prod-099', title: 'Gone Widget' }],
         })
       );
     });

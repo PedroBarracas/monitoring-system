@@ -20,9 +20,7 @@ const OOS_KEYWORDS = [
   'en rupture',
   'fuera de stock',
   'exhausto',
-  'Ausverkauft',
-  'Derzeit Ausverkaufts',
-  'Nincs raktáron'
+  'nincs raktáron'
 ];
 
 module.exports = OOS_KEYWORDS;

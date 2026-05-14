@@ -16,6 +16,7 @@ function resolveUrl(url, base) {
 
 function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
+  const missingThreshold = config.removalThreshold || 3;
 
   // Resolve Playwright once at creation time (optional dependency)
   let chromium = null;
@@ -80,13 +81,13 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
             },
           });
           const page = await context.newPage();
-          try {
-            await page.goto(target.url, { waitUntil: 'networkidle', timeout: 30000 });
-          } catch {
-            if (!browser.isConnected()) throw new Error('Browser crashed during navigation');
-            await page.goto(target.url, { waitUntil: 'load', timeout: 30000 });
-            await page.waitForTimeout(5000);
-          }
+          // Deterministic render: the same wait strategy every cycle so the DOM
+          // snapshot doesn't vary. `networkidle` is flaky on JS-filtered listing
+          // pages — a timed-out networkidle vs a clean one captured different
+          // product sets, churning products in/out of the DB. `load` fires once
+          // and reliably; the fixed settle lets client-side grids finish.
+          await page.goto(target.url, { waitUntil: 'load', timeout: 30000 });
+          await page.waitForTimeout(target.renderWait || 5000);
           html = await page.content();
         } catch (err) {
           logger.error(`Playwright failed for ${target.url}`, { error: err.message });
@@ -248,22 +249,32 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
         }
       }
 
-      // Detect removed products — mark in DB but don't send notifications
+      // Detect products absent from this cycle. Removal uses hysteresis: a
+      // product is only marked removed after it's been missing for
+      // `missingThreshold` consecutive cycles, so a single flaky scrape doesn't
+      // churn products in/out of the DB (which fired spurious restock alerts).
       const existingProducts = productRepo.getProductsBySource(target.url);
-      const removedProducts = existingProducts.filter((p) => !extractedIds.has(p.product_id));
+      const missingProducts = existingProducts.filter((p) => !extractedIds.has(p.product_id));
 
-      if (removedProducts.length > 0) {
+      const newlyRemoved = [];
+      for (const p of missingProducts) {
+        productRepo.markMissing(target.url, p.product_id, missingThreshold);
+        // p.missing_count is the pre-increment value read at the top of the cycle.
+        if ((p.missing_count || 0) + 1 >= missingThreshold) newlyRemoved.push(p);
+      }
+
+      if (newlyRemoved.length > 0) {
         alertRepo.logAlert('products_removed', {
           sourceUrl: target.url,
-          count: removedProducts.length,
-          products: removedProducts.map((p) => ({ productId: p.product_id, title: p.title })),
+          count: newlyRemoved.length,
+          products: newlyRemoved.map((p) => ({ productId: p.product_id, title: p.title })),
         });
+        logger.info(`${newlyRemoved.length} product(s) marked as removed from ${target.url} (missing ${missingThreshold}+ cycles)`);
+      }
 
-        for (const p of removedProducts) {
-          productRepo.markRemoved(target.url, p.product_id);
-        }
-
-        logger.info(`${removedProducts.length} product(s) marked as removed from ${target.url}`);
+      const stillPending = missingProducts.length - newlyRemoved.length;
+      if (stillPending > 0) {
+        logger.info(`${stillPending} product(s) absent from ${target.url} this cycle — below removal threshold`);
       }
     } catch (err) {
       logger.error(`Failed to process ${target.url}`, { error: err.message });

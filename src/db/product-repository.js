@@ -8,7 +8,7 @@ function createProductRepository(db) {
   `);
   const updateStmt = db.prepare(`
     UPDATE products
-    SET in_stock = ?, title = ?, price = ?, currency = ?, last_checked_at = datetime('now')
+    SET in_stock = ?, title = ?, price = ?, currency = ?, missing_count = 0, last_checked_at = datetime('now')
     WHERE source_url = ? AND product_id = ?
   `);
   const countBySourceStmt = db.prepare(
@@ -17,11 +17,17 @@ function createProductRepository(db) {
   const selectBySourceStmt = db.prepare(
     'SELECT * FROM products WHERE source_url = ? AND removed = 0'
   );
-  const markRemovedStmt = db.prepare(
-    'UPDATE products SET removed = 1, last_checked_at = datetime(\'now\') WHERE source_url = ? AND product_id = ?'
-  );
+  // Removal hysteresis: bump the absence counter and only flip `removed` once
+  // the product has been missing for `threshold` consecutive cycles.
+  const markMissingStmt = db.prepare(`
+    UPDATE products
+    SET missing_count = missing_count + 1,
+        removed = CASE WHEN missing_count + 1 >= ? THEN 1 ELSE 0 END,
+        last_checked_at = datetime('now')
+    WHERE source_url = ? AND product_id = ?
+  `);
   const reactivateStmt = db.prepare(
-    'UPDATE products SET removed = 0, in_stock = ?, title = ?, price = ?, currency = ?, last_checked_at = datetime(\'now\') WHERE source_url = ? AND product_id = ?'
+    'UPDATE products SET removed = 0, missing_count = 0, in_stock = ?, title = ?, price = ?, currency = ?, last_checked_at = datetime(\'now\') WHERE source_url = ? AND product_id = ?'
   );
 
   return {
@@ -45,8 +51,11 @@ function createProductRepository(db) {
       return selectBySourceStmt.all(sourceUrl);
     },
 
-    markRemoved(sourceUrl, productId) {
-      markRemovedStmt.run(sourceUrl, productId);
+    // Records that a product was absent from this cycle's extraction.
+    // It is only flagged `removed` once it has been missing `threshold`
+    // consecutive cycles; any sighting (update/reactivate) resets the counter.
+    markMissing(sourceUrl, productId, threshold) {
+      markMissingStmt.run(threshold, sourceUrl, productId);
     },
 
     reactivateProduct({ sourceUrl, productId, inStock, title, price, currency }) {

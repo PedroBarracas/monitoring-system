@@ -42,6 +42,10 @@ function loadConfig(env = process.env) {
       enabled: env.PRODUCTS_ENABLED !== 'false',
       targets: parseJsonArray(env.PRODUCT_TARGETS) || loadTargetsFile(),
       concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 15,
+      // Consecutive cycles a product must be absent before it's marked removed.
+      // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
+      // products in/out of the DB and fire spurious "back in stock" alerts.
+      removalThreshold: parseInt(env.PRODUCT_REMOVAL_THRESHOLD, 10) || 3,
     },
     // news: {
     //   enabled: env.NEWS_ENABLED !== 'false',

@@ -1,7 +1,7 @@
 {
   "name": "monitoring-system",
   "version": "1.0.0",
-  "description": "Node.js monitoring and alerting system for crypto, products, and news",
+  "description": "Node.js product monitoring system that scrapes e-commerce sites and alerts on new products and stock changes via Discord or Telegram",
   "main": "src/index.js",
   "engines": {
     "node": ">=18"
