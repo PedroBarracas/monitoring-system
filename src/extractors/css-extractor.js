@@ -1,4 +1,5 @@
 const cheerio = require('cheerio');
+const { parsePrice, detectCurrency } = require('../utils/price');
 
 function slugify(text) {
   return text
@@ -28,10 +29,10 @@ function extract(html, selectors, sourceUrl, outOfStockKeywords = []) {
     }
 
     const priceText = selectors.price ? $(el).find(selectors.price).text().trim() : '';
-    const priceMatch = priceText.match(/[\d]+[.,]\d{2}/);
-    const price = priceMatch ? priceMatch[0].replace(',', '.') : null;
+    const price = parsePrice(priceText);
+    const currency = detectCurrency(priceText, sourceUrl);
 
-    products.push({ productId, productUrl, title, inStock, price, currency: null, sourceUrl });
+    products.push({ productId, productUrl, title, inStock, price, currency, sourceUrl });
   });
 
   return products;

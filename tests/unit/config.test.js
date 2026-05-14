@@ -142,6 +142,23 @@ describe('loadConfig', () => {
     expect(config.products.removalThreshold).toBe(5);
   });
 
+  test('products.eurRates includes default conversion rates', () => {
+    const config = loadConfig(telegramEnv);
+    expect(config.products.eurRates.EUR).toBe(1);
+    expect(config.products.eurRates.GBP).toBeGreaterThan(0);
+  });
+
+  test('CURRENCY_RATES_EUR overrides individual default rates', () => {
+    const config = loadConfig({ ...telegramEnv, CURRENCY_RATES_EUR: '{"GBP":1.25}' });
+    expect(config.products.eurRates.GBP).toBe(1.25);
+    expect(config.products.eurRates.EUR).toBe(1); // untouched defaults remain
+  });
+
+  test('invalid CURRENCY_RATES_EUR falls back to defaults', () => {
+    const config = loadConfig({ ...telegramEnv, CURRENCY_RATES_EUR: 'not-json' });
+    expect(config.products.eurRates.EUR).toBe(1);
+  });
+
   test('channel selection is case-insensitive', () => {
     const config = loadConfig({
       NOTIFICATION_CHANNEL: 'DISCORD',

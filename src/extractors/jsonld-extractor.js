@@ -1,4 +1,5 @@
 const cheerio = require('cheerio');
+const { parsePrice } = require('../utils/price');
 
 const IN_STOCK_TYPES = new Set([
   'https://schema.org/InStock',
@@ -44,7 +45,11 @@ function resolveOffers(offers) {
     }
     const avail = offer.availability || '';
     const inStock = avail && !IN_STOCK_TYPES.has(avail) ? 0 : 1;
-    const price = offer.price != null ? String(offer.price) : (offer.lowPrice != null ? String(offer.lowPrice) : null);
+    // Normalise through parsePrice so JSON-LD prices match the format the CSS
+    // and heuristic extractors produce ("N.NN"), even if the site's markup is
+    // non-spec (e.g. "1.299,99").
+    const rawPrice = offer.price != null ? offer.price : offer.lowPrice;
+    const price = rawPrice != null ? parsePrice(String(rawPrice)) : null;
     const currency = offer.priceCurrency || null;
     return { inStock, availabilityExplicit: !!avail, price, currency };
   }

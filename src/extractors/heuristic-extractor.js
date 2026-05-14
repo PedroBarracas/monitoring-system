@@ -1,5 +1,6 @@
 const cheerio = require('cheerio');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
+const { parsePrice, detectCurrency } = require('../utils/price');
 
 const OOS_CLASSES = ['sold-out', 'soldout', 'outofstock', 'out-of-stock', 'agotado'];
 
@@ -83,11 +84,11 @@ const TITLE_SELECTORS = [
 ];
 
 const PRICE_SELECTORS = [
-  // Shopify
-  '.price-item--regular', '.price-item--sale', '.price__regular', '.price__sale',
+  // Shopify — sale price before regular so a discounted item reports the sale price
+  '.price-item--sale', '.price__sale', '.price-item--regular', '.price__regular',
   '.product-card__price', '.card__price',
-  // WooCommerce
-  '.woocommerce-Price-amount', '.price ins .amount', '.price .amount',
+  // WooCommerce — <ins> wraps the sale price, so try it before the generic amount
+  '.price ins .amount', '.woocommerce-Price-amount', '.price .amount',
   // PrestaShop
   '.product-price-and-shipping .price', '.product-price',
   // Ecwid
@@ -158,13 +159,6 @@ function findFirst($el, selectors, $) {
   return null;
 }
 
-function parsePrice(text) {
-  if (!text) return null;
-  // Match price patterns like "€29.99", "$100", "29,99 €", "100.00", etc.
-  const match = text.match(/[\d]+[.,]\d{2}/);
-  return match ? match[0].replace(',', '.') : null;
-}
-
 function extract(html, sourceUrl) {
   const $ = cheerio.load(html);
 
@@ -211,9 +205,21 @@ function extract(html, sourceUrl) {
     const inStock = isOutOfStock(el, $) ? 0 : 1;
 
     const priceEl = findFirst($el, PRICE_SELECTORS, $);
-    const price = priceEl ? parsePrice(priceEl.text()) : null;
+    let price = null;
+    let currency = null;
+    if (priceEl) {
+      // Drop struck-through "was" prices so we read the current/sale price,
+      // not the crossed-out original.
+      const priceClone = priceEl.clone();
+      priceClone
+        .find('s, del, .price-item--regular, .price__regular, [class*="compare"], [class*="was-price"], [class*="old-price"]')
+        .remove();
+      const priceText = priceClone.text().trim() || priceEl.text().trim();
+      price = parsePrice(priceText);
+      currency = detectCurrency(priceText, sourceUrl);
+    }
 
-    products.push({ productId, productUrl, title, inStock, price, currency: null, sourceUrl });
+    products.push({ productId, productUrl, title, inStock, price, currency, sourceUrl });
   });
 
   return products;

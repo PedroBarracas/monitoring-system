@@ -4,6 +4,7 @@ const heuristicExtractor = require('../extractors/heuristic-extractor');
 const { createLimiter } = require('../utils/concurrency');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
 const { checkDetailPageStock } = require('../utils/detail-stock-checker');
+const { formatPriceDisplay } = require('../utils/price');
 
 function resolveUrl(url, base) {
   if (!url) return base;
@@ -125,7 +126,7 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
 
       for (const product of products) {
         const existing = productRepo.getProduct(product.sourceUrl, product.productId);
-        const priceDisplay = product.price ? `${product.price}${product.currency ? ' ' + product.currency : ''}` : null;
+        const priceDisplay = formatPriceDisplay(product.price, product.currency, config.eurRates);
 
         if (!existing) {
           productRepo.insertProduct({
@@ -152,8 +153,10 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
               `Product: ${absoluteProductUrl}`,
               `Store: ${product.sourceUrl}`,
               `Status: ${product.inStock ? 'In Stock' : 'Out of Stock'}`,
+              // Always show a Price line on new-product alerts — fall back to
+              // "Unknown" when extraction didn't find one, so it's never absent.
+              `Price: ${priceDisplay || 'Unknown'}`,
             ];
-            if (priceDisplay) bodyLines.push(`Price: ${priceDisplay}`);
 
             const ok = await notifier.sendAlert({
               eventType: 'NEW_PRODUCT',

@@ -7,6 +7,27 @@ const path = require('path');
 const VALID_CHANNELS = ['telegram', 'discord'];
 const TARGETS_PATH = path.join(__dirname, '..', 'data', 'product-targets.json');
 
+// Approximate EUR conversion rates (1 unit of CURRENCY = N EUR). Floating rates
+// drift over time — override any of them via the CURRENCY_RATES_EUR env var.
+const DEFAULT_EUR_RATES = {
+  EUR: 1,
+  GBP: 1.17,
+  USD: 0.92,
+  CHF: 1.06,
+  PLN: 0.23,
+  CZK: 0.040,
+  HUF: 0.0025,
+  RON: 0.20,
+  BGN: 0.5113, // pegged to EUR
+  DKK: 0.134, // pegged to EUR
+  SEK: 0.088,
+  NOK: 0.086,
+  ISK: 0.0066,
+  CAD: 0.67,
+  AUD: 0.60,
+  JPY: 0.0060,
+};
+
 function loadConfig(env = process.env) {
   const channel = (env.NOTIFICATION_CHANNEL || 'telegram').toLowerCase();
   if (!VALID_CHANNELS.includes(channel)) {
@@ -46,6 +67,9 @@ function loadConfig(env = process.env) {
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
       // products in/out of the DB and fire spurious "back in stock" alerts.
       removalThreshold: parseInt(env.PRODUCT_REMOVAL_THRESHOLD, 10) || 3,
+      // Static currency→EUR rate table for the price line in notifications.
+      // CURRENCY_RATES_EUR (JSON object) overrides individual default rates.
+      eurRates: { ...DEFAULT_EUR_RATES, ...parseJsonObject(env.CURRENCY_RATES_EUR) },
     },
     // news: {
     //   enabled: env.NEWS_ENABLED !== 'false',
@@ -75,6 +99,16 @@ function parseJsonArray(value) {
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function parseJsonObject(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
   }
 }
 

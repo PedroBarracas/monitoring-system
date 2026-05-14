@@ -25,7 +25,7 @@ describe('heuristic-extractor', () => {
         title: 'Widget Alpha',
         inStock: 1,
         price: '29.99',
-        currency: null,
+        currency: 'EUR',
         sourceUrl,
       });
       expect(products[1].inStock).toBe(0);
@@ -80,7 +80,7 @@ describe('heuristic-extractor', () => {
         title: 'Display OP14',
         inStock: 1,
         price: '85.00',
-        currency: null,
+        currency: 'EUR',
         sourceUrl,
       });
       expect(products[1].inStock).toBe(0);
@@ -154,6 +154,61 @@ describe('heuristic-extractor', () => {
 
       const products = extract(html, sourceUrl);
       expect(products[0].productId).toBe('my-cool-product');
+    });
+  });
+
+  describe('price extraction', () => {
+    test('reads the sale price, not the struck-through original', () => {
+      const html = `<html><body>
+        <div class="product-card">
+          <h3><a href="/products/sale-item">Sale Item</a></h3>
+          <div class="price">
+            <s class="price-item--regular">€49.99</s>
+            <span class="price-item--sale">€29.99</span>
+          </div>
+        </div>
+      </body></html>`;
+
+      const products = extract(html, sourceUrl);
+      expect(products[0].price).toBe('29.99');
+      expect(products[0].currency).toBe('EUR');
+    });
+
+    test('strips struck-through prices even without sale-specific classes', () => {
+      const html = `<html><body>
+        <div class="product-card">
+          <h3><a href="/products/x">X</a></h3>
+          <div class="product-price"><del>€49.99</del> €29.99</div>
+        </div>
+      </body></html>`;
+
+      const products = extract(html, sourceUrl);
+      expect(products[0].price).toBe('29.99');
+    });
+
+    test('parses prices with thousands separators', () => {
+      const html = `<html><body>
+        <div class="product-card">
+          <h3><a href="/products/case">Sealed Case</a></h3>
+          <span class="price">€1,299.99</span>
+        </div>
+      </body></html>`;
+
+      const products = extract(html, sourceUrl);
+      expect(products[0].price).toBe('1299.99');
+    });
+
+    test('parses whole-number prices with no decimals', () => {
+      const html = `<html><body>
+        <div class="product-card">
+          <h3><a href="/products/round">Round Price</a></h3>
+          <span class="price">£30</span>
+        </div>
+      </body></html>`;
+
+      const products = extract(html, sourceUrl);
+      expect(products[0].price).toBe('30.00');
+      expect(products[0].currency).toBe('GBP');
     });
   });
 

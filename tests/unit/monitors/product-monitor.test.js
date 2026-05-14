@@ -135,6 +135,25 @@ describe('product-monitor', () => {
     expect(newProductCall[0].title).toBe('🛒 New product added: Widget Delta');
   });
 
+  test('new product notification always includes a Price line', async () => {
+    mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML_WITH_NEW_ITEM);
+    mockProductRepo.getProduct
+      .mockReturnValueOnce({ in_stock: 1 })
+      .mockReturnValueOnce({ in_stock: 1 })
+      .mockReturnValueOnce({ in_stock: 1 })
+      .mockReturnValueOnce(undefined);
+
+    await monitor.run();
+
+    const newProductCall = mockNotifier.sendAlert.mock.calls.find(
+      (call) => call[0].eventType === 'NEW_PRODUCT'
+    );
+    expect(newProductCall).toBeDefined();
+    // DEFAULT_PRODUCT_SELECTORS has no price selector, so price is unextracted —
+    // the line must still be present, with the "Unknown" fallback.
+    expect(newProductCall[0].body).toContain('Price: Unknown');
+  });
+
   test('handles fetch error gracefully', async () => {
     mockHttpClient.fetchHtml.mockRejectedValue(new Error('Connection refused'));
 
