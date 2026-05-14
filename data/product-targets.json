@@ -187,7 +187,7 @@
     "url": "https://pandacollecting.com/product-category/pokemon/?filter_language=english&stock_status=instock"
   },
   {
-    "url": "https://pokelotas.com/collections/ascended-heroes"
+    "url": "https://pokelotas.com/collections/pre-reserva?sort_by=created-descending&filter.v.price.gte=&filter.v.price.lte="
   },
   {
     "url": "https://ptmerch.com/pt/3628-pokemon-preorder"
@@ -214,7 +214,7 @@
     "url": "https://www.diver.pt/pt/17-pokemon"
   },
   {
-    "url": "https://www.tcghaven.pt/en/pokemon-en/por-edicao/ascended-heroes"
+    "url": "https://www.tcghaven.pt/en/pokemon-en?sorting=date-desc"
   },
   {
     "url": "https://psydeck.com/collections/pokemon?sort_by=created-descending&grid=default"
@@ -274,9 +274,6 @@
     "url": "https://confluxgames.com/en/collections/all/accessories-one-piece"
   },
   {
-    "url": "https://www.jupiterjuegos.com/one-piece-card-game"
-  },
-  {
     "url": "https://miceliongames.com/product-category/juegos-tcg/one-piece/"
   },
   {
@@ -305,9 +302,6 @@
   },
   {
     "url": "https://distritozero.es/categoria/one-piece-632"
-  },
-  {
-    "url": "https://monarkatcg.store/c/one-piece/"
   },
   {
     "url": "https://holoplazatcg.com/categoria/one-piece-tcg/"
@@ -494,5 +488,132 @@
   },
   {
     "url": "https://cardcenter.es/categoria-producto/cartas-one-piece/op/?stock_status=instock"
+  },
+  {
+    "url": "https://www.mnkcollectibles.com/pokemon-booster-boxes-eng",
+    "dynamic": true
+  },
+  {
+    "url": "https://www.mnkcollectibles.com/pokemon-elite-trainer-boxes",
+    "dynamic": true
+  },
+  {
+    "url": "https://www.mnkcollectibles.com/pokemon-collection-boxes",
+    "dynamic": true
+  },
+  {
+    "url": "https://www.mnkcollectibles.com/checklane-blister-packs",
+    "dynamic": true
+  },
+  {
+    "url": "https://evlutcg.com/collections/pokemon?filter.v.availability=1"
+  },
+  {
+    "url": "https://latiendascum.com/es/1789-pokemon-tcg?q=Disponibilidad-En+stock"
+  },
+  {
+    "url": "https://www.triplacegames.com/pokemon"
+  },
+  {
+    "url": "https://templarsarena.com/collections/pokemon?filter.p.m.custom.language=English+%28EN%29&filter.v.availability=1&page=1&sort_by=created-descending"
+  },
+  {
+    "url": "https://adcardcollectibles.com/collections/pokemon-boosters-box?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
+  },
+  {
+    "url": "https://adcardcollectibles.com/collections/pokemon-elite-trainer-box?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
+  },
+  {
+    "url": "https://adcardcollectibles.com/collections/pokemon-outros?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
+  },
+  {
+    "url": "https://adcardcollectibles.com/collections/boosters-1?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
+  },
+  {
+    "url": "https://duelosdehonra.weebly.com/store/c13/Pokemon.html"
+  },
+  {
+    "url": "https://masterpacks.pt/en/category/trading-card-games/pokemon-tcg?q=&marca=&licenca=&estado=em_stock&ordenar=recentes&layout=grid"
+  },
+  {
+    "url": "https://cardoreum.eu/collections/pokemon-tutti-i-prodotti?filter.v.availability=1&filter.v.option.lingua=Inglese&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  },
+  {
+    "url": "https://collgamers.nl/en/collections/pokemontcg?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  },
+  {
+    "url": "https://www.jupiterjuegos.com/pokemon-jcc?q=Disponibilidad-En+stock"
+  },
+  {
+    "url": "https://www.elduelista.com/collections/pokemon?filter.p.m.custom.tipo_de_producto=Producto+Sellado&filter.v.availability=1&filter.v.option.language=English"
+  },
+  {
+    "url": "https://www.colossalstore.es/tienda/swoof/product_cat-pokemon/instock/?orderby=date"
+  },
+  {
+    "url": "https://mercadiagames.pt/shop/page/1/?orderby=date&filters=product_cat[pokemon]"
+  },
+  {
+    "url": "https://syndiqgames.com/product-category/trading-card-games/pokemon-tcg/?orderby=date&paged=1"
+  },
+  {
+    "url": "https://gameria.es/23-pokemon"
+  },
+  {
+    "url": "https://www.turolgames.com/en/669-pokemon-tcg#"
+  },
+  {
+    "url": "https://arte9.com/categoria-producto/juegos_de_cartas/pokemoncartas/"
+  },
+  {
+    "url": "https://sarumangames.es/collections/pokemon-juego-de-cartas-coleccionables?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  },
+  {
+    "url": "https://epitrapez.io/product-category/trading-card-games/pokemon/?query_type_manufacturer=or&filter_manufacturer=pokemon&Stock=instock%2Conbackorder"
+  },
+  {
+    "url": "https://outpostbrussels.be/collections/pokemon?filter.p.m.custom.langue=Anglais&filter.v.availability=1&sort_by=created-descending"
+  },
+  {
+    "url": "https://www2.gamespirit.fr/977-pokemon"
+  },
+  {
+    "url": "https://playoteket.com/25-kortspel?kategorier=pokemon&i-lager=1"
+  },
+  {
+    "url": "https://sklep.merfolk.pl/category/NOWOSCI-POKEMON-439851?#OfertaProduktowa"
+  },
+  {
+    "url": "https://www.efantasy.gr/el/%CF%80%CF%81%CE%BF%CF%8A%CF%8C%CE%BD%CF%84%CE%B1/pokemon-tcg/sealed"
+  },
+  {
+    "url": "https://kaissagames.com/b2c_en/pokemon.html?stock=1"
+  },
+  {
+    "url": "https://dfantasy.gr/product-category/%cf%80%ce%b1%ce%b9%cf%87%ce%bd%ce%af%ce%b4%ce%b9%ce%b1-%ce%bc%ce%b5-%ce%ba%ce%ac%cf%81%cf%84%ce%b5%cf%82/pokemon-tcg/"
+  },
+  {
+    "url": "https://tarsasjatekvac.hu/termek-kategoria/gyujtogetos_kartyajatekok/pokemon/?orderby=date&paged=1&stock_status=instock"
+  },
+  {
+    "url": "https://www.ilcovodelnerd.com/categoria-prodotto/prodotti-sigillati/pokemon/?page=1&rb_custom_taxonomy_lingua=ENG&rb_stock_status=Disponibile"
+  },
+  {
+    "url": "https://cardcenter.es/categoria-producto/cartas-pokemon/?stock_status=instock&filter_idioma=ingles"
+  },
+  {
+    "url": "https://industria61.com/categoria-producto/juego-de-cartas-coleccionables/one-piece/"
+  },
+  {
+    "url": "https://industria61.com/categoria-producto/juego-de-cartas-coleccionables/pokemon-2/"
+  },
+  {
+    "url": "https://rota151.pt/categoria-produto/tcg/boxes/"
+  },
+  {
+    "url": "https://www.toys24.gr/toys/paichnidia-epitrapezia-pazl/epitrapezia-paichnidia-kartes/paichnidia-me-kartes/?hrwas-thema=pokemon"
+  },
+  {
+    "url": "https://etoy.gr/paixnidia-epitrapezia-trading-card-games-2264?%CE%BA%CE%B1%CF%84%CE%B7%CE%B3%CE%BF%CF%81%CE%AF%CE%B5%CF%82=pokemon-tcg,one-piece-card-game"
   }
 ]
