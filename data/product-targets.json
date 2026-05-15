@@ -74,7 +74,7 @@
     "url": "https://gglounge.pt/product-category/tcg/one-piece-tcg/"
   },
   {
-    "url": "https://masterpacks.pt/es/trading-card-games/one-piece"
+    "url": "https://masterpacks.pt/en/category/trading-card-games/one-piece-tcg/english?q=&marca=&licenca=&estado=&layout=grid&ordenar=recentes"
   },
   {
     "url": "https://cardoreum.eu/collections/one-piece-tutti-i-prodotti"
@@ -235,7 +235,7 @@
     "url": "https://tcg-family.com/collections/pre-vendas-pokemon?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
   },
   {
-    "url": "https://zatu.com/en-es/collections/pre-orders-one-piece?sort_by=created-descending"
+    "url": "https://zatu.com/collections/pre-orders-one-piece?sort_by=created-descending"
   },
   {
     "url": "https://www.kizoku.life/collections/pokemon?sort_by=created-descending&filter.v.availability=1"
@@ -251,9 +251,6 @@
   },
   {
     "url": "https://www.popsplanet.it/shop/one-piece-card-game/"
-  },
-  {
-    "url": "https://www.ebgames.com.au/search?category=toys-hobbies&subcategory=toys-hobbies-trading-cards&attributes=franchise%3Aone-piece"
   },
   {
     "url": "https://gamexfood.it/collections/carte-one-piece?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
@@ -296,9 +293,6 @@
   },
   {
     "url": "https://elencuentro.infrecuentes.es/tienda/categoria/tcg/"
-  },
-  {
-    "url": "https://cartooncorp.es/595-one-piece-card-game"
   },
   {
     "url": "https://distritozero.es/categoria/one-piece-632"
@@ -487,9 +481,6 @@
     "url": "https://www.ludusbelli.com/one-piece-tcg/"
   },
   {
-    "url": "https://cardcenter.es/categoria-producto/cartas-one-piece/op/?stock_status=instock"
-  },
-  {
     "url": "https://www.mnkcollectibles.com/pokemon-booster-boxes-eng",
     "dynamic": true
   },
@@ -597,9 +588,6 @@
   },
   {
     "url": "https://www.ilcovodelnerd.com/categoria-prodotto/prodotti-sigillati/pokemon/?page=1&rb_custom_taxonomy_lingua=ENG&rb_stock_status=Disponibile"
-  },
-  {
-    "url": "https://cardcenter.es/categoria-producto/cartas-pokemon/?stock_status=instock&filter_idioma=ingles"
   },
   {
     "url": "https://industria61.com/categoria-producto/juego-de-cartas-coleccionables/one-piece/"
