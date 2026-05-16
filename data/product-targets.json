@@ -58,9 +58,6 @@
     "url": "https://www.triplacegames.com/search?q=one+piece+card+game&page=1"
   },
   {
-    "url": "https://templarsarena.com/collections/one-piece-card-game?sort_by=created-descending&filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte="
-  },
-  {
     "url": "https://adcardcollectibles.com/collections/one-piece-boosters-boxes?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
   },
   {
@@ -504,9 +501,6 @@
   },
   {
     "url": "https://www.triplacegames.com/pokemon"
-  },
-  {
-    "url": "https://templarsarena.com/collections/pokemon?filter.p.m.custom.language=English+%28EN%29&filter.v.availability=1&page=1&sort_by=created-descending"
   },
   {
     "url": "https://adcardcollectibles.com/collections/pokemon-boosters-box?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
