@@ -58,6 +58,8 @@ cp .env.example .env
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (required if channel is telegram) | — |
 | `TELEGRAM_CHAT_ID` | Telegram chat ID (required if channel is telegram) | — |
 | `DISCORD_WEBHOOK_URL` | Discord webhook URL (required if channel is discord) | — |
+| `DISCORD_WEBHOOK_URL_POKEMON` | Optional Discord webhook for Pokémon product alerts. URLs containing `pokemon` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
+| `DISCORD_WEBHOOK_URL_ONE_PIECE` | Optional Discord webhook for One Piece product alerts. URLs containing `one-piece` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
 | `PRODUCT_REMOVAL_THRESHOLD` | Consecutive cycles a product must be absent before it's marked removed (removal hysteresis — absorbs flaky scrapes) | `3` |
@@ -97,6 +99,7 @@ Define targets in `PRODUCT_TARGETS` env var or in `data/product-targets.json`. E
 | `dynamic` | Use Playwright for JS-rendered pages | No (`false`) |
 | `renderWait` | Milliseconds to wait after page load for JS-rendered grids to settle (`dynamic` targets only) | No (`5000`) |
 | `detailStock` | Follow product links to verify stock on detail pages | No (`false`) |
+| `category` | Force notification routing (e.g. `"pokemon"`, `"one-piece"`); overrides the URL auto-detection | No (auto-detected) |
 
 ## Running
 

@@ -76,6 +76,22 @@ describe('loadConfig', () => {
     expect(config.telegram.chatId).toBe('');
   });
 
+  test('per-category Discord webhooks default to empty', () => {
+    const config = loadConfig(discordEnv);
+    expect(config.discord.webhookUrlPokemon).toBe('');
+    expect(config.discord.webhookUrlOnePiece).toBe('');
+  });
+
+  test('per-category Discord webhooks read from their env vars', () => {
+    const config = loadConfig({
+      ...discordEnv,
+      DISCORD_WEBHOOK_URL_POKEMON: 'https://discord.com/api/webhooks/p/1',
+      DISCORD_WEBHOOK_URL_ONE_PIECE: 'https://discord.com/api/webhooks/o/1',
+    });
+    expect(config.discord.webhookUrlPokemon).toBe('https://discord.com/api/webhooks/p/1');
+    expect(config.discord.webhookUrlOnePiece).toBe('https://discord.com/api/webhooks/o/1');
+  });
+
   test('does not require discord vars when using telegram', () => {
     expect(() => loadConfig(telegramEnv)).not.toThrow();
     const config = loadConfig(telegramEnv);

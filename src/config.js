@@ -52,6 +52,11 @@ function loadConfig(env = process.env) {
     discord: {
       webhookUrl: env.DISCORD_WEBHOOK_URL || '',
       errorWebhookUrl: env.DISCORD_ERROR_WEBHOOK_URL || '',
+      // Optional per-category webhooks. Product alerts for that category go to
+      // the dedicated channel; everything else (and any category without a
+      // dedicated webhook) falls back to DISCORD_WEBHOOK_URL.
+      webhookUrlPokemon: env.DISCORD_WEBHOOK_URL_POKEMON || '',
+      webhookUrlOnePiece: env.DISCORD_WEBHOOK_URL_ONE_PIECE || '',
     },
     // crypto: {
     //   enabled: env.CRYPTO_ENABLED !== 'false',

@@ -44,7 +44,7 @@ describe('product-monitor', () => {
     monitor = createProductMonitor({
       productRepo: mockProductRepo,
       alertRepo: mockAlertRepo,
-      notifier: mockNotifier,
+      notifiers: { default: mockNotifier },
       errorNotifier: mockErrorNotifier,
       httpClient: mockHttpClient,
       config,
@@ -207,7 +207,7 @@ describe('product-monitor', () => {
     const multiMonitor = createProductMonitor({
       productRepo: mockProductRepo,
       alertRepo: mockAlertRepo,
-      notifier: mockNotifier,
+      notifiers: { default: mockNotifier },
       errorNotifier: mockErrorNotifier,
       httpClient: mockHttpClient,
       config: multiConfig,
@@ -241,7 +241,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: jsonldConfig,
@@ -272,7 +272,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: heuristicConfig,
@@ -304,7 +304,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: autoConfig,
@@ -336,7 +336,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: autoConfig,
@@ -435,7 +435,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: detailConfig,
@@ -473,7 +473,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: noDetailConfig,
@@ -513,7 +513,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: detailConfig,
@@ -638,7 +638,7 @@ describe('product-monitor', () => {
       const m = createProductMonitor({
         productRepo: mockProductRepo,
         alertRepo: mockAlertRepo,
-        notifier: mockNotifier,
+        notifiers: { default: mockNotifier },
         errorNotifier: mockErrorNotifier,
         httpClient: mockHttpClient,
         config: manyTargets,
@@ -648,6 +648,110 @@ describe('product-monitor', () => {
       const result = await m.run();
       expect(result.alertsSent).toBe(12);
       expect(mockHttpClient.fetchHtml).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  describe('per-category notifier routing', () => {
+    let pokemonNotifier;
+    let onePieceNotifier;
+    let defaultNotifier;
+
+    function buildMonitor(targetUrl, extra = {}) {
+      pokemonNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
+      onePieceNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
+      defaultNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
+      return createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: {
+          default: defaultNotifier,
+          pokemon: pokemonNotifier,
+          'one-piece': onePieceNotifier,
+          ...(extra.notifiers || {}),
+        },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: targetUrl,
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+            ...(extra.category ? { category: extra.category } : {}),
+          }],
+          concurrency: 5,
+        },
+        logger: mockLogger,
+      });
+    }
+
+    beforeEach(() => {
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined); // new products → trigger alerts
+    });
+
+    test('routes a Pokemon URL to the pokemon notifier', async () => {
+      const m = buildMonitor('https://shop.example.com/collections/pokemon-tcg');
+      await m.run();
+      expect(pokemonNotifier.sendAlert).toHaveBeenCalled();
+      expect(onePieceNotifier.sendAlert).not.toHaveBeenCalled();
+      expect(defaultNotifier.sendAlert).not.toHaveBeenCalled();
+    });
+
+    test('routes a One Piece URL to the one-piece notifier', async () => {
+      const m = buildMonitor('https://shop.example.com/collections/one-piece-tcg');
+      await m.run();
+      expect(onePieceNotifier.sendAlert).toHaveBeenCalled();
+      expect(pokemonNotifier.sendAlert).not.toHaveBeenCalled();
+      expect(defaultNotifier.sendAlert).not.toHaveBeenCalled();
+    });
+
+    test('falls back to the default notifier for a generic URL', async () => {
+      const m = buildMonitor('https://shop.example.com/collections/trading-cards');
+      await m.run();
+      expect(defaultNotifier.sendAlert).toHaveBeenCalled();
+      expect(pokemonNotifier.sendAlert).not.toHaveBeenCalled();
+      expect(onePieceNotifier.sendAlert).not.toHaveBeenCalled();
+    });
+
+    test('explicit target.category overrides URL auto-detection', async () => {
+      // URL says pokemon, but the explicit category says one-piece — explicit wins
+      const m = buildMonitor('https://shop.example.com/collections/pokemon-tcg', { category: 'one-piece' });
+      await m.run();
+      expect(onePieceNotifier.sendAlert).toHaveBeenCalled();
+      expect(pokemonNotifier.sendAlert).not.toHaveBeenCalled();
+    });
+
+    test('path tokens win over query tokens', async () => {
+      // path is one-piece, query contains pokemon — path should win
+      const m = buildMonitor('https://shop.example.com/collections/one-piece-tcg?filter=pokemon');
+      await m.run();
+      expect(onePieceNotifier.sendAlert).toHaveBeenCalled();
+      expect(pokemonNotifier.sendAlert).not.toHaveBeenCalled();
+    });
+
+    test('falls back to default when no dedicated notifier exists for the category', async () => {
+      // Pokemon URL, but only the default notifier is configured
+      defaultNotifier = { sendAlert: jest.fn().mockResolvedValue(true) };
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: defaultNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: 'https://shop.example.com/collections/pokemon-tcg',
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+          }],
+          concurrency: 5,
+        },
+        logger: mockLogger,
+      });
+      await m.run();
+      expect(defaultNotifier.sendAlert).toHaveBeenCalled();
     });
   });
 });

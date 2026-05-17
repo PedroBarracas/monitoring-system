@@ -41,31 +41,41 @@ const productHttpClient = config.products.proxyUrl
     })
   : httpClient;
 
-// Initialize notification service based on config
-let notifier;
+// Initialize notification service(s) based on config. `notifiers` is a map of
+// category → notifier (with `default` always present); the product monitor
+// picks the right one per target. Non-product alerts use `errorNotifier`.
+let notifiers;
 let errorNotifier;
 if (config.notificationChannel === 'discord') {
-  notifier = createDiscordService({
-    webhookUrl: config.discord.webhookUrl,
-    httpClient,
-    logger: createLogger('discord', { level: config.logLevel }),
-  });
+  const mkDiscord = (webhookUrl, name) =>
+    createDiscordService({
+      webhookUrl,
+      httpClient,
+      logger: createLogger(name, { level: config.logLevel }),
+    });
+  notifiers = { default: mkDiscord(config.discord.webhookUrl, 'discord') };
+  if (config.discord.webhookUrlPokemon) {
+    notifiers.pokemon = mkDiscord(config.discord.webhookUrlPokemon, 'discord-pokemon');
+    logger.info('Discord: dedicated channel for Pokemon product alerts');
+  }
+  if (config.discord.webhookUrlOnePiece) {
+    notifiers['one-piece'] = mkDiscord(config.discord.webhookUrlOnePiece, 'discord-one-piece');
+    logger.info('Discord: dedicated channel for One Piece product alerts');
+  }
   errorNotifier = config.discord.errorWebhookUrl
-    ? createDiscordService({
-        webhookUrl: config.discord.errorWebhookUrl,
-        httpClient,
-        logger: createLogger('discord-errors', { level: config.logLevel }),
-      })
-    : notifier;
+    ? mkDiscord(config.discord.errorWebhookUrl, 'discord-errors')
+    : notifiers.default;
   logger.info('Using Discord for notifications');
 } else {
-  notifier = createTelegramService({
+  const tg = createTelegramService({
     botToken: config.telegram.botToken,
     chatId: config.telegram.chatId,
     httpClient,
     logger: createLogger('telegram', { level: config.logLevel }),
   });
-  errorNotifier = notifier;
+  // Telegram doesn't split by channel here — every category uses the same chat.
+  notifiers = { default: tg };
+  errorNotifier = tg;
   logger.info('Using Telegram for notifications');
 }
 
@@ -99,7 +109,7 @@ if (config.products.enabled && config.products.targets.length > 0) {
     createProductMonitor({
       productRepo: createProductRepository(db),
       alertRepo,
-      notifier,
+      notifiers,
       errorNotifier,
       httpClient: productHttpClient,
       config: config.products,

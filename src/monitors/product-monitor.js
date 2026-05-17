@@ -25,9 +25,44 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
 }
 
-function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier, httpClient, config, logger }) {
+// Auto-detect the trading-card-game category from a URL, used to route alerts
+// to a dedicated channel when configured. Path tokens win over query tokens, so
+// `.../collections/one-piece-card-game?filter.vendor=Pokemon` reads as "one-piece".
+function categoryOf(url) {
+  if (!url) return null;
+  let path = '';
+  let query = '';
+  try {
+    const u = new URL(url);
+    path = u.pathname.toLowerCase();
+    query = u.search.toLowerCase();
+  } catch {
+    return null;
+  }
+  const matchPokemon = (s) => s.includes('pokemon') || s.includes('pokémon');
+  const matchOnePiece = (s) =>
+    s.includes('one-piece') ||
+    s.includes('one_piece') ||
+    s.includes('onepiece') ||
+    s.includes('one+piece') ||
+    s.includes('one%20piece');
+  if (matchPokemon(path)) return 'pokemon';
+  if (matchOnePiece(path)) return 'one-piece';
+  if (matchPokemon(query)) return 'pokemon';
+  if (matchOnePiece(query)) return 'one-piece';
+  return null;
+}
+
+function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
   const missingThreshold = config.removalThreshold || 3;
+
+  // Pick the notifier for a target — by explicit `category` field on the target,
+  // otherwise auto-detected from the URL. Falls back to `notifiers.default`.
+  function pickNotifier(target) {
+    const cat = target.category || categoryOf(target.url);
+    return (cat && notifiers[cat]) ? notifiers[cat] : notifiers.default;
+  }
 
   // Resolve Playwright once at creation time (optional dependency)
   let chromium = null;
@@ -123,6 +158,8 @@ function createProductMonitor({ productRepo, alertRepo, notifier, errorNotifier,
   async function processTarget(target) {
     let sent = 0;
     const errs = [];
+    // Route product alerts to the category-specific channel when configured.
+    const notifier = pickNotifier(target);
 
     try {
       let html;
