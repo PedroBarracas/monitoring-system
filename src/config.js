@@ -72,6 +72,10 @@ function loadConfig(env = process.env) {
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
       // products in/out of the DB and fire spurious "back in stock" alerts.
       removalThreshold: parseInt(env.PRODUCT_REMOVAL_THRESHOLD, 10) || 3,
+      // Hard upper bound (ms) on a single target's processing. Belt to the
+      // per-operation timeouts — if a sub-operation hangs past every other
+      // guard, this stops it from wedging the whole cycle.
+      targetTimeoutMs: parseInt(env.PRODUCT_TARGET_TIMEOUT_MS, 10) || 180000,
       // Static currency→EUR rate table for the price line in notifications.
       // CURRENCY_RATES_EUR (JSON object) overrides individual default rates.
       eurRates: { ...DEFAULT_EUR_RATES, ...parseJsonObject(env.CURRENCY_RATES_EUR) },

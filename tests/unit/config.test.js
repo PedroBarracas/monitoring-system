@@ -158,6 +158,15 @@ describe('loadConfig', () => {
     expect(config.products.removalThreshold).toBe(5);
   });
 
+  test('products.targetTimeoutMs defaults to 180000', () => {
+    expect(loadConfig(telegramEnv).products.targetTimeoutMs).toBe(180000);
+  });
+
+  test('products.targetTimeoutMs reads from PRODUCT_TARGET_TIMEOUT_MS', () => {
+    const config = loadConfig({ ...telegramEnv, PRODUCT_TARGET_TIMEOUT_MS: '5000' });
+    expect(config.products.targetTimeoutMs).toBe(5000);
+  });
+
   test('products.eurRates includes default conversion rates', () => {
     const config = loadConfig(telegramEnv);
     expect(config.products.eurRates.EUR).toBe(1);

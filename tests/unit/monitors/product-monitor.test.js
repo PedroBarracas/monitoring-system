@@ -651,6 +651,27 @@ describe('product-monitor', () => {
     });
   });
 
+  describe('per-target timeout (cycle safety net)', () => {
+    test('a stalled target does not wedge the cycle — it is timed out and surfaced as an error', async () => {
+      // fetchHtml never resolves — without the per-target guard, run() would hang forever
+      mockHttpClient.fetchHtml.mockReturnValue(new Promise(() => {}));
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: { ...config, targetTimeoutMs: 100 },
+        logger: mockLogger,
+      });
+
+      const result = await m.run();
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toMatch(/timed out/i);
+    });
+  });
+
   describe('per-category notifier routing', () => {
     let pokemonNotifier;
     let onePieceNotifier;

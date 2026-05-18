@@ -114,6 +114,10 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           'sec-ch-ua-platform': '"Windows"',
         },
       });
+      // Default timeouts for the context — propagate to every page so any
+      // unguarded action (waits, frame events, etc.) is also bounded.
+      context.setDefaultTimeout(30000);
+      context.setDefaultNavigationTimeout(30000);
       const page = await context.newPage();
       // Deterministic render: the same wait strategy every cycle so the DOM
       // snapshot doesn't vary. `load` fires once and reliably; the fixed settle
@@ -385,8 +389,19 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
     async run() {
       const startTime = Date.now();
 
+      // Hard per-target cap: no single target can stall the cycle past
+      // `targetTimeoutMs`, regardless of which sub-operation hangs. The per-
+      // operation timeouts are the primary bound — this is the safety net.
+      const perTargetMs = config.targetTimeoutMs || 180000;
       const results = await Promise.all(
-        config.targets.map((target) => limit(() => processTarget(target)))
+        config.targets.map((target) =>
+          limit(() =>
+            withTimeout(processTarget(target), perTargetMs, `processTarget(${target.url})`).catch((err) => {
+              logger.error(`processTarget exceeded its budget`, { url: target.url, error: err.message });
+              return { sent: 0, errs: [`${target.url}: ${err.message}`] };
+            })
+          )
+        )
       );
 
       const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
