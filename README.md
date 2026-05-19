@@ -103,6 +103,13 @@ Define targets in `PRODUCT_TARGETS` env var or in `data/product-targets.json`. E
 | `category` | Force notification routing (e.g. `"pokemon"`, `"one-piece"`); overrides the URL auto-detection | No (auto-detected) |
 | `currency` | Force ISO currency code (e.g. `"SEK"`) on every product from this target; overrides extractor detection and JSON-LD. Useful when a store's TLD doesn't disambiguate (e.g. a Swedish shop on a `.com` domain showing `kr`). | No (auto-detected) |
 
+### Ships-to-Portugal indicator
+
+Discord notifications get a 🇵🇹 flag prefixed on the title when the target's store is on the **confirmed ships-to-PT** list:
+
+- **Any `.pt` domain** — automatic.
+- **Other hosts** — listed in [`data/ships-to-portugal.json`](data/ships-to-portugal.json). Edit that file to add hosts as you manually verify them; see [`docs/shipping-status.md`](docs/shipping-status.md) for the audit that built the initial list.
+
 ## Running
 
 ```bash

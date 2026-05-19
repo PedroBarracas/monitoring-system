@@ -5,6 +5,7 @@ data/extraction-diagnostic.json
 data/fetch-results.json
 data/fetch-results-onepiece.json
 data/links_*.json
+data/shipping-*.json
 todo.txt
 .env
 coverage/

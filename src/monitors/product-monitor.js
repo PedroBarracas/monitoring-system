@@ -5,6 +5,7 @@ const { createLimiter } = require('../utils/concurrency');
 const OOS_KEYWORDS = require('../utils/oos-keywords');
 const { checkDetailPageStock } = require('../utils/detail-stock-checker');
 const { formatPriceDisplay } = require('../utils/price');
+const { shipsToPortugal } = require('../utils/ships-to-portugal');
 
 function resolveUrl(url, base) {
   if (!url) return base;
@@ -164,6 +165,8 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
     const errs = [];
     // Route product alerts to the category-specific channel when configured.
     const notifier = pickNotifier(target);
+    // Prefix notification titles with the PT flag when the store ships to Portugal.
+    const titleFlag = shipsToPortugal(target.url) ? '🇵🇹 ' : '';
 
     try {
       let html;
@@ -263,7 +266,7 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
             const ok = await notifier.sendAlert({
               eventType: 'NEW_PRODUCT',
-              title: `🛒 New product added: ${product.title}`,
+              title: `${titleFlag}🛒 New product added: ${product.title}`,
               body: bodyLines.join('\n'),
             });
             if (!ok) logger.warn(`Failed to send new product alert for ${product.productId}`);
@@ -300,7 +303,7 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
             const ok = await notifier.sendAlert({
               eventType: 'STOCK_CHANGE',
-              title: product.title,
+              title: `${titleFlag}${product.title}`,
               body: bodyLines.join('\n'),
             });
             if (!ok) logger.warn(`Failed to send restock alert for ${product.productId}`);
@@ -337,7 +340,7 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
             const ok = await notifier.sendAlert({
               eventType: 'STOCK_CHANGE',
-              title: product.title,
+              title: `${titleFlag}${product.title}`,
               body: bodyLines.join('\n'),
             });
             if (!ok) logger.warn(`Failed to send stock change alert for ${product.productId}`);

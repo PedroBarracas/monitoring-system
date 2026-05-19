@@ -651,6 +651,55 @@ describe('product-monitor', () => {
     });
   });
 
+  describe('🇵🇹 flag prefix on title', () => {
+    test('prefixes notification titles with 🇵🇹 when the target ships to Portugal', async () => {
+      const ptConfig = {
+        targets: [{
+          url: 'https://shop.example.pt/new-arrivals',
+          selectors: DEFAULT_PRODUCT_SELECTORS,
+          extractor: 'css',
+          dynamic: false,
+        }],
+        concurrency: 5,
+      };
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(5); // not first-run → notifications fire
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: ptConfig,
+        logger: mockLogger,
+      });
+      await m.run();
+
+      const productAlerts = mockNotifier.sendAlert.mock.calls.filter((c) => c[0].eventType === 'NEW_PRODUCT');
+      expect(productAlerts.length).toBeGreaterThan(0);
+      for (const call of productAlerts) {
+        expect(call[0].title).toMatch(/^🇵🇹\s/);
+      }
+    });
+
+    test('does not prefix when the target host is not on the confirmed list', async () => {
+      // default config uses 'https://shop.example.com/...' — not on the list
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(5);
+
+      await monitor.run();
+
+      const productAlerts = mockNotifier.sendAlert.mock.calls.filter((c) => c[0].eventType === 'NEW_PRODUCT');
+      expect(productAlerts.length).toBeGreaterThan(0);
+      for (const call of productAlerts) {
+        expect(call[0].title).not.toMatch(/^🇵🇹/);
+      }
+    });
+  });
+
   describe('target.currency override', () => {
     test('forces currency on every extracted product when target.currency is set', async () => {
       const overrideConfig = {
