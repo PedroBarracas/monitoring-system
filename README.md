@@ -101,6 +101,7 @@ Define targets in `PRODUCT_TARGETS` env var or in `data/product-targets.json`. E
 | `renderWait` | Milliseconds to wait after page load for JS-rendered grids to settle (`dynamic` targets only) | No (`5000`) |
 | `detailStock` | Follow product links to verify stock on detail pages | No (`false`) |
 | `category` | Force notification routing (e.g. `"pokemon"`, `"one-piece"`); overrides the URL auto-detection | No (auto-detected) |
+| `currency` | Force ISO currency code (e.g. `"SEK"`) on every product from this target; overrides extractor detection and JSON-LD. Useful when a store's TLD doesn't disambiguate (e.g. a Swedish shop on a `.com` domain showing `kr`). | No (auto-detected) |
 
 ## Running
 

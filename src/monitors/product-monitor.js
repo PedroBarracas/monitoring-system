@@ -209,6 +209,13 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
         });
       }
 
+      // Explicit per-target currency override (e.g. a Swedish shop on a .com TLD
+      // where auto-detection of `kr` can't distinguish SEK/DKK/NOK/ISK).
+      // Applied last so it beats both extractor detection and JSON-LD details.
+      if (target.currency && products.length > 0) {
+        products = products.map((p) => ({ ...p, currency: target.currency }));
+      }
+
       if (products.length === 0 && productRepo.countBySource(target.url) > 0) {
         logger.warn(`Zero products extracted from ${target.url} but ${productRepo.countBySource(target.url)} exist in DB — skipping update`);
         return { sent, errs };

@@ -14,7 +14,11 @@ const SYMBOL_RULES = [
 // Symbols shared by several currencies — resolved via the store's domain TLD,
 // falling back to the most common currency for that symbol (or null if none).
 const AMBIGUOUS_RULES = [
-  { test: (t) => /\bkr\b/i.test(t), byTld: { se: 'SEK', dk: 'DKK', no: 'NOK', is: 'ISK' }, fallback: null },
+  // `kr` is shared by SEK / DKK / NOK / ISK. Scandinavian shops sometimes sit
+  // on a generic .com TLD so we can't always disambiguate — default to SEK as
+  // the most-common krona (largest economy by far), which is better than no
+  // detection at all. Override per-target with `currency` when needed.
+  { test: (t) => /\bkr\b/i.test(t), byTld: { se: 'SEK', dk: 'DKK', no: 'NOK', is: 'ISK' }, fallback: 'SEK' },
   { test: (t) => t.includes('$'), byTld: { us: 'USD', ca: 'CAD', au: 'AUD' }, fallback: 'USD' },
 ];
 

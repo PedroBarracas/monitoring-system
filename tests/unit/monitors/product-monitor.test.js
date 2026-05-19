@@ -651,6 +651,40 @@ describe('product-monitor', () => {
     });
   });
 
+  describe('target.currency override', () => {
+    test('forces currency on every extracted product when target.currency is set', async () => {
+      const overrideConfig = {
+        targets: [{
+          url: 'https://shop.example.com/store',
+          selectors: DEFAULT_PRODUCT_SELECTORS,
+          extractor: 'css',
+          dynamic: false,
+          currency: 'SEK',
+        }],
+        concurrency: 5,
+      };
+      mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(5); // not first-run
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: overrideConfig,
+        logger: mockLogger,
+      });
+      await m.run();
+
+      expect(mockProductRepo.insertProduct).toHaveBeenCalled();
+      for (const call of mockProductRepo.insertProduct.mock.calls) {
+        expect(call[0].currency).toBe('SEK');
+      }
+    });
+  });
+
   describe('per-target timeout (cycle safety net)', () => {
     test('a stalled target does not wedge the cycle — it is timed out and surfaced as an error', async () => {
       // fetchHtml never resolves — without the per-target guard, run() would hang forever

@@ -72,8 +72,10 @@ describe('price util', () => {
       expect(detectCurrency('299 kr', 'https://shop.no/x')).toBe('NOK');
     });
 
-    test('returns null for "kr" when the TLD does not disambiguate', () => {
-      expect(detectCurrency('299 kr', 'https://shop.com/x')).toBeNull();
+    test('"kr" falls back to SEK when the TLD does not disambiguate', () => {
+      // Most-common krona by far — better than no detection. Per-target
+      // `currency` override on the target config can correct it if needed.
+      expect(detectCurrency('299 kr', 'https://shop.com/x')).toBe('SEK');
     });
 
     test('resolves "$" via TLD, falling back to USD', () => {
