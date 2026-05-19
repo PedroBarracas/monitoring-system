@@ -7,12 +7,9 @@ describe('shipsToPortugal', () => {
     expect(shipsToPortugal('https://sub.domain.pt/y')).toBe(true);
   });
 
-  test('non-.pt hosts in data/ships-to-portugal.json return true', () => {
-    expect(shipsToPortugal('https://adcardcollectibles.com/x')).toBe(true);
-    expect(shipsToPortugal('https://www.zatu.com/y')).toBe(true);
-  });
-
-  test('hosts NOT in the list return false', () => {
+  test('non-.pt hosts not in the data file return false', () => {
+    // data/ships-to-portugal.json starts empty — non-.pt hosts must be added
+    // there manually after verification, so by default they return false.
     expect(shipsToPortugal('https://unknown-store.example/x')).toBe(false);
     expect(shipsToPortugal('https://example.org/y')).toBe(false);
   });
@@ -22,9 +19,5 @@ describe('shipsToPortugal', () => {
     expect(shipsToPortugal(undefined)).toBe(false);
     expect(shipsToPortugal('')).toBe(false);
     expect(shipsToPortugal('not a url')).toBe(false);
-  });
-
-  test('host matching is case-insensitive', () => {
-    expect(shipsToPortugal('https://ADCARDCOLLECTIBLES.COM/x')).toBe(true);
   });
 });

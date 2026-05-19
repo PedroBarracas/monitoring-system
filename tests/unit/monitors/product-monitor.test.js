@@ -486,7 +486,10 @@ describe('product-monitor', () => {
       expect(mockHttpClient.fetchHtml).toHaveBeenCalledTimes(1);
     });
 
-    test('falls back to listing status on detail fetch error', async () => {
+    test('still inserts and notifies a new product when its detail fetch fails', async () => {
+      // detailStock fetch fails for a brand-new product — we still want to know
+      // it exists. The listing's in-stock default is used; subsequent cycles
+      // correct the stock value once the detail page is reachable.
       const detailConfig = {
         targets: [{
           url: 'https://shop.example.com',
@@ -509,6 +512,7 @@ describe('product-monitor', () => {
         .mockRejectedValueOnce(new Error('Timeout'));
 
       mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(5); // not first-run
 
       const m = createProductMonitor({
         productRepo: mockProductRepo,
@@ -522,8 +526,60 @@ describe('product-monitor', () => {
 
       await m.run();
 
-      const insertCalls = mockProductRepo.insertProduct.mock.calls;
-      expect(insertCalls[0][0].inStock).toBe(1); // kept listing status
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.sendAlert).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'NEW_PRODUCT' })
+      );
+    });
+
+    test('preserves DB stock and fires no alert when detail fetch fails for an existing product', async () => {
+      // The exact scenario causing false "Out of Stock -> In Stock" alerts on
+      // isekai: DB has the product as OOS, this cycle's detail fetch fails,
+      // the listing's in-stock default would otherwise flip the DB state.
+      const detailConfig = {
+        targets: [{
+          url: 'https://shop.example.com',
+          extractor: 'heuristic',
+          dynamic: false,
+          detailStock: true,
+        }],
+        concurrency: 5,
+      };
+
+      const listingHtml = `<html><body>
+        <div class="product-card">
+          <h3><a href="/products/item-a">Item A</a></h3>
+        </div>
+      </body></html>`;
+
+      mockHttpClient.fetchHtml
+        .mockResolvedValueOnce(listingHtml)
+        .mockRejectedValueOnce(new Error('Timeout'));
+
+      // Product exists in DB, currently recorded as OOS.
+      mockProductRepo.getProduct.mockReturnValue({ in_stock: 0, removed: 0, missing_count: 0 });
+      mockProductRepo.countBySource.mockReturnValue(5);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: detailConfig,
+        logger: mockLogger,
+      });
+
+      await m.run();
+
+      // updateProduct called with the DB's prior in_stock value preserved
+      expect(mockProductRepo.updateProduct).toHaveBeenCalledWith(
+        expect.objectContaining({ inStock: 0 })
+      );
+      // and crucially: no "Out of Stock -> In Stock" alert fired
+      expect(mockNotifier.sendAlert).not.toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'STOCK_CHANGE' })
+      );
     });
   });
 
@@ -652,7 +708,7 @@ describe('product-monitor', () => {
   });
 
   describe('🇵🇹 flag prefix on title', () => {
-    test('prefixes notification titles with 🇵🇹 when the target ships to Portugal', async () => {
+    test('prefixes notification titles with 🇵🇹 for Portuguese (.pt) domains', async () => {
       const ptConfig = {
         targets: [{
           url: 'https://shop.example.pt/new-arrivals',
@@ -684,8 +740,8 @@ describe('product-monitor', () => {
       }
     });
 
-    test('does not prefix when the target host is not on the confirmed list', async () => {
-      // default config uses 'https://shop.example.com/...' — not on the list
+    test('does not prefix when the target host is not on a Portuguese domain', async () => {
+      // default config uses 'https://shop.example.com/...' — not .pt
       mockHttpClient.fetchHtml.mockResolvedValue(PRODUCT_HTML);
       mockProductRepo.getProduct.mockReturnValue(undefined);
       mockProductRepo.countBySource.mockReturnValue(5);

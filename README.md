@@ -105,10 +105,7 @@ Define targets in `PRODUCT_TARGETS` env var or in `data/product-targets.json`. E
 
 ### Ships-to-Portugal indicator
 
-Discord notifications get a 🇵🇹 flag prefixed on the title when the target's store is on the **confirmed ships-to-PT** list:
-
-- **Any `.pt` domain** — automatic.
-- **Other hosts** — listed in [`data/ships-to-portugal.json`](data/ships-to-portugal.json). Edit that file to add hosts as you manually verify them; see [`docs/shipping-status.md`](docs/shipping-status.md) for the audit that built the initial list.
+Discord notifications get a 🇵🇹 flag prefixed on the title for stores on a Portuguese (`.pt`) domain — auto-detected from the URL. Other hosts you've manually verified can be added to [`data/ships-to-portugal.json`](data/ships-to-portugal.json) (the file starts empty after [the audit had false positives](docs/shipping-status.md)).
 
 ## Running
 

@@ -181,7 +181,7 @@ describe('detail-stock-checker', () => {
       expect(result[0].inStock).toBe(1);
     });
 
-    test('falls back to listing status on fetch error', async () => {
+    test('flags product stockUnverified on detail-page fetch error', async () => {
       const products = [
         { productId: 'p1', productUrl: '/product/p1', title: 'Product 1', inStock: 1, sourceUrl: 'https://shop.com' },
       ];
@@ -195,7 +195,10 @@ describe('detail-stock-checker', () => {
       });
 
       expect(result).toHaveLength(1);
+      // Listing's inStock is preserved (we don't fabricate a stock value), but
+      // the product is flagged so product-monitor knows not to trust the reading.
       expect(result[0].inStock).toBe(1);
+      expect(result[0].stockUnverified).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('Detail page fetch failed'));
     });
 
@@ -236,7 +239,10 @@ describe('detail-stock-checker', () => {
       expect(result).toHaveLength(3);
       expect(result[0].inStock).toBe(0); // OOS from keyword
       expect(result[1].inStock).toBe(1); // in stock from detail
-      expect(result[2].inStock).toBe(1); // fallback on error
+      // The 3rd product's detail fetch failed — listing value is kept, but it's
+      // flagged so the monitor preserves the prior DB stock value.
+      expect(result[2].inStock).toBe(1);
+      expect(result[2].stockUnverified).toBe(true);
     });
 
     test('handles mix of JSON-LD and keyword detection across products', async () => {

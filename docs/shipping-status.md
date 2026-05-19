@@ -2,6 +2,8 @@
 
 Captures the outcome of an automated audit of every store in [`data/product-targets.json`](../data/product-targets.json) — does the shop deliver to Portugal? Last updated 2026-05-18.
 
+> ⚠️ **The automated audit produced false positives** (e.g. `bulkparadise-tcg.de`, which ships only within Germany, was incorrectly classified as ships-to-PT). As a result, [`data/ships-to-portugal.json`](../data/ships-to-portugal.json) has been **reset to empty** — only `.pt` domains are auto-confirmed at runtime. The bucketed lists below remain useful as **starting candidates for manual verification**, not authoritative answers.
+
 ## Methodology
 
 Three automated passes, each more invasive than the last. Only stops short of submitting fake addresses / placing orders.
@@ -115,12 +117,6 @@ troll2jeux.com
 | Host | Origin | Reason |
 |---|---|---|
 | `hobbixchange.co.nz` | New Zealand | Country selector technically lists Portugal, but NZ → PT shipping is €40–80 per order, prohibitive for TCG products. |
-
-## Runtime: the 🇵🇹 flag on notifications
-
-The confirmed list above is persisted in [`data/ships-to-portugal.json`](../data/ships-to-portugal.json) — a plain JSON array of hostnames. The product monitor consults it (plus auto-confirms any `.pt` domain) to decide whether to prefix a Discord notification's title with 🇵🇹.
-
-When you manually verify one of the 32 inconclusive hosts, **append its hostname to that JSON file** and redeploy — no code change needed.
 
 ## Re-running
 

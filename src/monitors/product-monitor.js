@@ -165,7 +165,8 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
     const errs = [];
     // Route product alerts to the category-specific channel when configured.
     const notifier = pickNotifier(target);
-    // Prefix notification titles with the PT flag when the store ships to Portugal.
+    // Prefix notification titles with the PT flag for Portuguese (.pt) domains
+    // (auto-detected) and any host explicitly listed in data/ships-to-portugal.json.
     const titleFlag = shipsToPortugal(target.url) ? '🇵🇹 ' : '';
 
     try {
@@ -234,6 +235,26 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
         const existing = productRepo.getProduct(product.sourceUrl, product.productId);
         const priceDisplay = formatPriceDisplay(product.price, product.currency, config.eurRates);
 
+        // detailStock fetch failed for this *existing* product — we can't trust
+        // the listing's stock default. Preserve the prior DB value and skip the
+        // stock-change alert; metadata gets refreshed normally. New products
+        // (no existing row) flow through the normal insert/notify path below,
+        // because announcing a newly-discovered product matters more than the
+        // exact stock reading on first sight.
+        if (product.stockUnverified && existing) {
+          if (!existing.removed) {
+            productRepo.updateProduct({
+              sourceUrl: product.sourceUrl,
+              productId: product.productId,
+              inStock: existing.in_stock,
+              title: `${titleFlag}${product.title}`,
+              price: product.price,
+              currency: product.currency,
+            });
+          }
+          continue;
+        }
+
         if (!existing) {
           productRepo.insertProduct({
             sourceUrl: product.sourceUrl,
@@ -248,7 +269,7 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           if (!isFirstRun) {
             alertRepo.logAlert('new_product', {
               productId: product.productId,
-              title: product.title,
+              title: `${titleFlag}${product.title}`,
               url: product.productUrl,
               inStock: product.inStock === 1,
               price: product.price,
@@ -296,7 +317,7 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
             alertRepo.logAlert('stock_change', {
               productId: product.productId,
-              title: product.title,
+              title: `${titleFlag}${product.title}`,
               oldStatus: 'Removed',
               newStatus: 'In Stock',
             });

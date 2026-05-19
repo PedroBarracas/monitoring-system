@@ -75,8 +75,13 @@ async function checkDetailPageStock(products, { baseUrl, httpClient, logger, con
         }
         return product;
       } catch (err) {
+        // Detail fetch failed: we cannot trust the listing's stock reading either
+        // (the listing may default to "in stock" — isekai does — so falling back
+        // would fire a false "Out of Stock -> In Stock" alert next time the real
+        // value is OOS). Flag the product so product-monitor preserves the
+        // previous DB value instead of overwriting it.
         logger.warn(`Detail page fetch failed for "${product.title}" (${url}): ${err.message}`);
-        return product;
+        return { ...product, stockUnverified: true };
       }
     })
   );
