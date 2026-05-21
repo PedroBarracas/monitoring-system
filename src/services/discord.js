@@ -1,6 +1,8 @@
 const MAX_EMBED_DESCRIPTION = 4096;
 const MAX_FIELD_VALUE = 1024;
 const MAX_EMBEDS = 10;
+const MAX_FIELDS_PER_EMBED = 25;
+const MAX_EMBED_TOTAL_CHARS = 6000;
 
 const EVENT_COLORS = {
   CRYPTO_TRACKING: 0x3498db, // blue
@@ -77,7 +79,7 @@ function createDiscordService({ webhookUrl, httpClient, logger }) {
 
   async function sendAlert({ eventType, title, body }) {
     const color = EVENT_COLORS[eventType] || DEFAULT_COLOR;
-    const fields = parseBodyToFields(body);
+    const fields = clampEmbedFields(parseBodyToFields(body), title);
     const timestamp = new Date().toISOString();
 
     const embed = {
@@ -109,6 +111,28 @@ function createDiscordService({ webhookUrl, httpClient, logger }) {
   }
 
   return { sendMessage, sendAlert };
+}
+
+// Enforce Discord's hard caps so an oversized payload doesn't HTTP 400.
+// Discord limits a single embed to 25 fields and 6000 total characters
+// (title + field names + field values + footer text).
+function clampEmbedFields(fields, title = '') {
+  let budget = MAX_EMBED_TOTAL_CHARS - (title?.length || 0) - 'Monitoring System'.length;
+  const out = [];
+  for (const f of fields) {
+    if (out.length >= MAX_FIELDS_PER_EMBED - 1) {
+      out.push({ name: '​', value: `… ${fields.length - out.length} more line(s) omitted`.slice(0, MAX_FIELD_VALUE), inline: false });
+      break;
+    }
+    const cost = (f.name?.length || 0) + (f.value?.length || 0);
+    if (cost > budget) {
+      out.push({ name: '​', value: '… truncated'.slice(0, MAX_FIELD_VALUE), inline: false });
+      break;
+    }
+    out.push(f);
+    budget -= cost;
+  }
+  return out;
 }
 
 function parseBodyToFields(body) {
@@ -149,4 +173,4 @@ function isValidUrl(str) {
   }
 }
 
-module.exports = { createDiscordService, parseBodyToFields, EVENT_COLORS };
+module.exports = { createDiscordService, parseBodyToFields, clampEmbedFields, EVENT_COLORS };

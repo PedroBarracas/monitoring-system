@@ -460,9 +460,16 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           const sep = e.indexOf(': ');
           const url = sep > -1 ? e.slice(0, sep) : e;
           const msg = sep > -1 ? e.slice(sep + 2) : 'Unknown error';
-          // Strip embedded URLs from error message to group by error type
-          // e.g. "HTTP 403 from https://example.com" → "HTTP 403"
-          const cleanMsg = msg.replace(/\s+from\s+https?:\/\/\S+/, '').replace(/:\s*$/, '').trim();
+          // Collapse multi-line errors (e.g. Playwright's "page.goto ... Call log:\n- navigating to ...")
+          // to their first line, strip embedded URLs, and truncate. Discord embeds cap at 25 fields /
+          // 6000 chars total, and the field-parser splits on \n — so unbounded multi-line errors
+          // produce too many fields and the webhook returns HTTP 400.
+          const firstLine = msg.split('\n')[0].trim();
+          const cleanMsg = firstLine
+            .replace(/\s+from\s+https?:\/\/\S+/, '')
+            .replace(/:\s*$/, '')
+            .trim()
+            .slice(0, 200);
           let siteName;
           try {
             siteName = new URL(url).hostname.replace(/^www\./, '').split('.')[0];
@@ -472,9 +479,15 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           if (!grouped[cleanMsg]) grouped[cleanMsg] = [];
           grouped[cleanMsg].push(siteName);
         }
-        const errorLines = Object.entries(grouped).map(([msg, sites]) =>
-          `${msg} → ${sites.length} occurrence${sites.length > 1 ? 's' : ''} (${sites.join(', ')})`
+        const MAX_ERROR_GROUPS = 15;
+        const entries = Object.entries(grouped);
+        const visible = entries.slice(0, MAX_ERROR_GROUPS);
+        const errorLines = visible.map(([msg, sites]) =>
+          `${msg} → ${sites.length} occurrence${sites.length > 1 ? 's' : ''} (${sites.slice(0, 10).join(', ')}${sites.length > 10 ? `, +${sites.length - 10} more` : ''})`
         );
+        if (entries.length > MAX_ERROR_GROUPS) {
+          errorLines.push(`… and ${entries.length - MAX_ERROR_GROUPS} more error type(s) omitted`);
+        }
         summaryLines.push(`\nErrors:\n${errorLines.join('\n')}`);
       }
 
