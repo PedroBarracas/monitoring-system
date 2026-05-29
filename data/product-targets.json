@@ -403,9 +403,6 @@
     "url": "https://guildmage.pl/one-piece"
   },
   {
-    "url": "https://www.xzone.cz/onepiece"
-  },
-  {
     "url": "https://www.hrananetu.cz/one-piece"
   },
   {
@@ -443,9 +440,6 @@
   },
   {
     "url": "https://tienda.sharkgames.es/collections/raiz-inicio-juegos-de-cartas-one-piece-tcg"
-  },
-  {
-    "url": "https://www.xzone.cz/sberatelske-hry-one-piece-tcg?sort=date_desc&s=60&page=1&term=&c=1058"
   },
   {
     "url": "https://www.ilcovodelnerd.com/categoria-prodotto/prodotti-sigillati/altri-giochi-di-carte/one-piece-tcg/"
@@ -595,5 +589,17 @@
   ,
   {
     "url": "https://www.ajogar.com/collections/pokemon?sort_by=created-descending&filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte="
+  }
+  ,
+  {
+    "url": "https://untradablestore.com/collections/pokemon-tcg?sort_by=created-descending"
+  }
+  ,
+  {
+    "url": "https://www.waylandgames.co.uk/tabletop-games/collectable-card-games/pokemon?per_page=36"
+  }
+  ,
+  {
+    "url": "https://geekhaven.pt/collections/pokemon?filter.p.m.tcg.linguagem=Ingl%C3%AAs&filter.v.availability=1&sort_by=created-descending&grid=default"
   }
 ]
