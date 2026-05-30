@@ -62,6 +62,7 @@ cp .env.example .env
 | `DISCORD_WEBHOOK_URL_ONE_PIECE` | Optional Discord webhook for One Piece product alerts. URLs containing `one-piece` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
+| `PRODUCT_PLAYWRIGHT_CONCURRENCY` | Max concurrent Chromium launches. The deployed Linux VM throws `spawn ... EAGAIN` (kernel can't fork) and cascading "browser has been closed" errors when several Chromiums launch in parallel — keep at `1` unless the host comfortably handles 2+ headless browsers at once. | `1` |
 | `PRODUCT_REMOVAL_THRESHOLD` | Consecutive cycles a product must be absent before it's marked removed (removal hysteresis — absorbs flaky scrapes) | `3` |
 | `PRODUCT_TARGET_TIMEOUT_MS` | Hard upper bound (ms) on a single target's processing. Belt to the per-operation timeouts — guarantees no single target can stall the whole cycle. | `180000` |
 | `CURRENCY_RATES_EUR` | JSON object of `{ "CURRENCY": rateToEur }` overrides for the static EUR-conversion table shown in notifications (e.g. `{"GBP":1.25}`) | built-in defaults |

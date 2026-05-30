@@ -572,12 +572,6 @@
     "url": "https://www.ilcovodelnerd.com/categoria-prodotto/prodotti-sigillati/pokemon/?page=1&rb_custom_taxonomy_lingua=ENG&rb_stock_status=Disponibile"
   },
   {
-    "url": "https://industria61.com/categoria-producto/juego-de-cartas-coleccionables/one-piece/"
-  },
-  {
-    "url": "https://industria61.com/categoria-producto/juego-de-cartas-coleccionables/pokemon-2/"
-  },
-  {
     "url": "https://rota151.pt/categoria-produto/tcg/boxes/"
   },
   {
@@ -601,5 +595,33 @@
   ,
   {
     "url": "https://geekhaven.pt/collections/pokemon?filter.p.m.tcg.linguagem=Ingl%C3%AAs&filter.v.availability=1&sort_by=created-descending&grid=default"
+  }
+  ,
+  {
+    "url": "https://mathom.es/es/6900-one-piece-card-game"
+  }
+  ,
+  {
+    "url": "https://tbmj.pt/loja/?product_cat=one-piece&product_status=in_stock&filter=1"
+  }
+  ,
+  {
+    "url": "https://tbmj.pt/loja/?product_cat=pokemon&product_status=in_stock&filter=1"
+  }
+  ,
+  {
+    "url": "https://cardcenter.es/categoria-producto/cartas-one-piece/?orderby=date"
+  }
+  ,
+  {
+    "url": "https://mathom.es/es/4596-pokemon?order=product.date_add.desc"
+  }
+  ,
+  {
+    "url": "https://cartooncorp.es/595-one-piece-card-game"
+  }
+  ,
+  {
+    "url": "https://cartooncorp.es/347-comprar-cartas-pokemon"
   }
 ]

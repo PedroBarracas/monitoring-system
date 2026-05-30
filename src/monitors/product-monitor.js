@@ -56,6 +56,10 @@ function categoryOf(url) {
 
 function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
+  // Separate semaphore for Chromium — the deployed Linux VM throws `spawn
+  // EAGAIN` and cascading "browser has been closed" errors when several
+  // Chromiums launch in parallel. Default 1 = serialized.
+  const playwrightLimit = createLimiter(config.playwrightConcurrency || 1);
   const missingThreshold = config.removalThreshold || 3;
 
   // Pick the notifier for a target — by explicit `category` field on the target,
@@ -179,17 +183,26 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
         }
         try {
           let result;
+          // Funnel all Playwright work through playwrightLimit — every
+          // chromium.launch() call (initial attempt + proxy retry) counts as
+          // one slot, so launches are serialized when playwrightConcurrency=1.
           try {
-            result = await renderWithPlaywright(target.url, target.renderWait, false);
+            result = await playwrightLimit(() =>
+              renderWithPlaywright(target.url, target.renderWait, false)
+            );
             // Blocked? Fall back to the proxy (fresh IP), like the HTTP client does.
             if (playwrightProxy && [403, 429, 503].includes(result.status)) {
               logger.warn(`HTTP ${result.status} from ${target.url} (Playwright) — retrying via proxy`);
-              result = await renderWithPlaywright(target.url, target.renderWait, true);
+              result = await playwrightLimit(() =>
+                renderWithPlaywright(target.url, target.renderWait, true)
+              );
             }
           } catch (err) {
             if (!playwrightProxy) throw err;
             logger.warn(`Playwright failed for ${target.url} (${err.message}) — retrying via proxy`);
-            result = await renderWithPlaywright(target.url, target.renderWait, true);
+            result = await playwrightLimit(() =>
+              renderWithPlaywright(target.url, target.renderWait, true)
+            );
           }
           html = result.html;
         } catch (err) {

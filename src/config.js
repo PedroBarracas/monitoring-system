@@ -68,6 +68,12 @@ function loadConfig(env = process.env) {
       enabled: env.PRODUCTS_ENABLED !== 'false',
       targets: parseJsonArray(env.PRODUCT_TARGETS) || loadTargetsFile(),
       concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 15,
+      // Separate cap on concurrent Chromium launches. The deployed Linux VM
+      // throws `spawn ... EAGAIN` (kernel can't fork) and cascading "browser
+      // has been closed" errors when several Chromiums launch in parallel —
+      // serialize them so the OS doesn't get overwhelmed. Tune up only if the
+      // host comfortably handles 2+ headless browsers at once.
+      playwrightConcurrency: parseInt(env.PRODUCT_PLAYWRIGHT_CONCURRENCY, 10) || 1,
       // Consecutive cycles a product must be absent before it's marked removed.
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
       // products in/out of the DB and fire spurious "back in stock" alerts.
