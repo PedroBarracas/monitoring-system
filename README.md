@@ -61,6 +61,7 @@ cp .env.example .env
 | `DISCORD_WEBHOOK_URL_POKEMON` | Optional Discord webhook for Pokémon product alerts. URLs containing `pokemon` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `DISCORD_WEBHOOK_URL_ONE_PIECE` | Optional Discord webhook for One Piece product alerts. URLs containing `one-piece` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
+| `PRODUCT_EXCLUDE_KEYWORDS` | Case-insensitive title-substring blocklist. Comma-separated (`sleeves,playmat,starter deck`) or JSON array. Matching products are dropped before insert/notification. | `sleeves, sleeve, starter deck, playmat` |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
 | `PRODUCT_PLAYWRIGHT_CONCURRENCY` | Max concurrent Chromium launches. The deployed Linux VM throws `spawn ... EAGAIN` (kernel can't fork) and cascading "browser has been closed" errors when several Chromiums launch in parallel — keep at `1` unless the host comfortably handles 2+ headless browsers at once. | `1` |
 | `PRODUCT_REMOVAL_THRESHOLD` | Consecutive cycles a product must be absent before it's marked removed (removal hysteresis — absorbs flaky scrapes) | `3` |

@@ -914,4 +914,128 @@ describe('product-monitor', () => {
       expect(defaultNotifier.sendAlert).toHaveBeenCalled();
     });
   });
+
+  describe('title-keyword filter', () => {
+    const FILTERED_HTML = `
+      <html><body>
+        <div class="product-card" data-product-id="prod-1">
+          <h3 class="product-title">Pokemon Booster Box</h3>
+          <span class="stock-label">In Stock</span>
+          <a href="https://shop.example.com/products/prod-1">View</a>
+        </div>
+        <div class="product-card" data-product-id="prod-2">
+          <h3 class="product-title">Pokemon Card Sleeves 50ct</h3>
+          <span class="stock-label">In Stock</span>
+          <a href="https://shop.example.com/products/prod-2">View</a>
+        </div>
+        <div class="product-card" data-product-id="prod-3">
+          <h3 class="product-title">Charizard Playmat</h3>
+          <span class="stock-label">In Stock</span>
+          <a href="https://shop.example.com/products/prod-3">View</a>
+        </div>
+        <div class="product-card" data-product-id="prod-4">
+          <h3 class="product-title">Starter Deck — Bulbasaur</h3>
+          <span class="stock-label">In Stock</span>
+          <a href="https://shop.example.com/products/prod-4">View</a>
+        </div>
+      </body></html>
+    `;
+
+    test('drops products whose title contains a blocked keyword', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(FILTERED_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: 'https://shop.example.com/x',
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+          }],
+          concurrency: 5,
+          excludeTitleKeywords: ['sleeves', 'playmat', 'starter deck'],
+        },
+        logger: mockLogger,
+      });
+
+      await m.run();
+      // Only prod-1 (booster box) survives.
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(1);
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledWith(
+        expect.objectContaining({ productId: 'prod-1', title: 'Pokemon Booster Box' })
+      );
+    });
+
+    test('matches case-insensitively', async () => {
+      const html = `
+        <html><body>
+          <div class="product-card" data-product-id="x">
+            <h3 class="product-title">PIKACHU PLAYMAT EDITION</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/x">View</a>
+          </div>
+        </body></html>
+      `;
+      mockHttpClient.fetchHtml.mockResolvedValue(html);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: 'https://shop.example.com/x',
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+          }],
+          concurrency: 5,
+          excludeTitleKeywords: ['playmat'],
+        },
+        logger: mockLogger,
+      });
+
+      await m.run();
+      expect(mockProductRepo.insertProduct).not.toHaveBeenCalled();
+    });
+
+    test('no filtering when excludeTitleKeywords is empty', async () => {
+      mockHttpClient.fetchHtml.mockResolvedValue(FILTERED_HTML);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: 'https://shop.example.com/x',
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+          }],
+          concurrency: 5,
+          excludeTitleKeywords: [],
+        },
+        logger: mockLogger,
+      });
+
+      await m.run();
+      expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(4);
+    });
+  });
 });

@@ -74,6 +74,17 @@ function loadConfig(env = process.env) {
       // serialize them so the OS doesn't get overwhelmed. Tune up only if the
       // host comfortably handles 2+ headless browsers at once.
       playwrightConcurrency: parseInt(env.PRODUCT_PLAYWRIGHT_CONCURRENCY, 10) || 1,
+      // Case-insensitive substring filter on product titles. Any extracted
+      // product whose title contains one of these is dropped before insertion
+      // /notification — useful to skip accessory products (sleeves, playmats,
+      // starter decks) you don't care about. Override via PRODUCT_EXCLUDE_KEYWORDS
+      // (JSON array or comma-separated list).
+      excludeTitleKeywords: parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS, [
+        'sleeves',
+        'sleeve',
+        'starter deck',
+        'playmat',
+      ]),
       // Consecutive cycles a product must be absent before it's marked removed.
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
       // products in/out of the DB and fire spurious "back in stock" alerts.
@@ -118,6 +129,20 @@ function parseJsonArray(value) {
   } catch {
     return null;
   }
+}
+
+// Accepts either a JSON array (`["a","b"]`) or a comma-separated string
+// (`a,b`). Returns the default when value is unset/blank/malformed.
+function parseKeywordList(value, defaults) {
+  if (!value || typeof value !== 'string' || !value.trim()) return defaults;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String).map((s) => s.trim()).filter(Boolean);
+    } catch { /* fall through to comma-split */ }
+  }
+  return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 function parseJsonObject(value) {

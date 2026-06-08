@@ -61,6 +61,10 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
   // Chromiums launch in parallel. Default 1 = serialized.
   const playwrightLimit = createLimiter(config.playwrightConcurrency || 1);
   const missingThreshold = config.removalThreshold || 3;
+  // Title-substring blocklist (lowercased once at startup). Products whose
+  // title contains any of these are dropped after extraction so they never
+  // get inserted or alerted on.
+  const excludeKeywords = (config.excludeTitleKeywords || []).map((k) => String(k).toLowerCase());
 
   // Pick the notifier for a target — by explicit `category` field on the target,
   // otherwise auto-detected from the URL. Falls back to `notifiers.default`.
@@ -216,6 +220,23 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
       let products = await extractProducts(html, target);
       logger.info(`Extracted ${products.length} products from ${target.url}`);
+
+      // Title-keyword filter (sleeves / playmats / starter decks by default).
+      // Applied BEFORE detailStock to avoid spending extra HTTP calls on
+      // products we're going to drop anyway. Pre-existing DB rows whose title
+      // now matches the filter drain quietly via removal hysteresis —
+      // products_removed only writes to the alert_log, no Discord alert.
+      if (excludeKeywords.length > 0 && products.length > 0) {
+        const before = products.length;
+        products = products.filter((p) => {
+          const t = (p.title || '').toLowerCase();
+          return !excludeKeywords.some((kw) => t.includes(kw));
+        });
+        const dropped = before - products.length;
+        if (dropped > 0) {
+          logger.info(`Filtered ${dropped} product(s) by title keywords from ${target.url}`);
+        }
+      }
 
       if (target.detailStock && products.length > 0) {
         products = await checkDetailPageStock(products, {
