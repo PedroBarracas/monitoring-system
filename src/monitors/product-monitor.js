@@ -61,6 +61,11 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
   // Chromiums launch in parallel. Default 1 = serialized.
   const playwrightLimit = createLimiter(config.playwrightConcurrency || 1);
   const missingThreshold = config.removalThreshold || 3;
+  // Per-operation budget: applied INLINE around each network op (fetchHtml,
+  // renderWithPlaywright). Timer ticks against actual work, not queue wait
+  // behind playwrightLimit. The outer-loop withTimeout is a wider safety net
+  // sized to also cover the deterministic queue wait — see `run()`.
+  const perOpMs = config.targetTimeoutMs || 180000;
   // Title-substring blocklist (lowercased once at startup). Products whose
   // title contains any of these are dropped after extraction so they never
   // get inserted or alerted on.
@@ -102,19 +107,48 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
   // Render a page with Playwright, optionally through the proxy. Returns the
   // HTTP status (for block detection) and the rendered HTML.
-  async function renderWithPlaywright(url, renderWait, useProxy) {
-    const browser = await chromium.launch({
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-http2',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-      ],
-      timeout: 30000, // bound the launch itself
-      ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
-    });
+  //
+  // `deadlineMs` (optional) is the per-operation budget: when it fires, the
+  // browser is closed mid-flight which terminates in-flight page actions, the
+  // function rejects with a timeout error, and the finally block runs cleanup
+  // synchronously before the promise settles. This last detail matters — the
+  // `playwrightLimit` slot is only released when this promise settles, so the
+  // NEXT chromium.launch is guaranteed not to race with this one's teardown.
+  // Without this, a naive `withTimeout(renderWithPlaywright(...), ...)` on the
+  // outside would free the slot while the inner browser was still running →
+  // parallel Chromiums → EAGAIN.
+  async function renderWithPlaywright(url, renderWait, useProxy, deadlineMs) {
+    let browser;
+    let deadlineTimer;
+    let timedOut = false;
+
+    if (deadlineMs) {
+      deadlineTimer = setTimeout(() => {
+        timedOut = true;
+        if (browser) {
+          // Force-close: this interrupts whatever page action is in flight,
+          // which lets the try-block's await throw and reach the finally.
+          browser.close().catch(() => {
+            try { browser.process()?.kill('SIGKILL'); } catch { /* gone */ }
+          });
+        }
+        // If browser is still undefined the launch itself will trip on its
+        // own `timeout: 30000` shortly after this.
+      }, deadlineMs);
+    }
+
     try {
+      browser = await chromium.launch({
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-http2',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage',
+        ],
+        timeout: 30000, // bound the launch itself
+        ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
+      });
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         extraHTTPHeaders: {
@@ -123,28 +157,25 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           'sec-ch-ua-platform': '"Windows"',
         },
       });
-      // Default timeouts for the context — propagate to every page so any
-      // unguarded action (waits, frame events, etc.) is also bounded.
       context.setDefaultTimeout(30000);
       context.setDefaultNavigationTimeout(30000);
       const page = await context.newPage();
-      // Deterministic render: the same wait strategy every cycle so the DOM
-      // snapshot doesn't vary. `load` fires once and reliably; the fixed settle
-      // lets client-side grids finish.
       const response = await page.goto(url, { waitUntil: 'load', timeout: 30000 });
       await page.waitForTimeout(renderWait || 5000);
       return { status: response ? response.status() : null, html: await page.content() };
+    } catch (err) {
+      if (timedOut) {
+        throw new Error(`renderWithPlaywright(${url}) timed out after ${deadlineMs}ms`);
+      }
+      throw err;
     } finally {
-      // A wedged browser must not hang the cycle: give close() 10s, then
-      // force-kill the process so the slot is always released.
-      await withTimeout(browser.close(), 10000, 'browser.close').catch(() => {
-        logger.warn(`browser.close() hung for ${url} — force-killing the browser process`);
-        try {
-          browser.process()?.kill('SIGKILL');
-        } catch {
-          /* process already gone */
-        }
-      });
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      if (browser) {
+        await withTimeout(browser.close(), 10000, 'browser.close').catch(() => {
+          logger.warn(`browser.close() hung for ${url} — force-killing the browser process`);
+          try { browser.process()?.kill('SIGKILL'); } catch { /* gone */ }
+        });
+      }
     }
   }
 
@@ -190,22 +221,24 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           // Funnel all Playwright work through playwrightLimit — every
           // chromium.launch() call (initial attempt + proxy retry) counts as
           // one slot, so launches are serialized when playwrightConcurrency=1.
+          // `perOpMs` is the per-operation budget: applied INSIDE the closure
+          // so the timer only ticks against actual work, not queue wait.
           try {
             result = await playwrightLimit(() =>
-              renderWithPlaywright(target.url, target.renderWait, false)
+              renderWithPlaywright(target.url, target.renderWait, false, perOpMs)
             );
             // Blocked? Fall back to the proxy (fresh IP), like the HTTP client does.
             if (playwrightProxy && [403, 429, 503].includes(result.status)) {
               logger.warn(`HTTP ${result.status} from ${target.url} (Playwright) — retrying via proxy`);
               result = await playwrightLimit(() =>
-                renderWithPlaywright(target.url, target.renderWait, true)
+                renderWithPlaywright(target.url, target.renderWait, true, perOpMs)
               );
             }
           } catch (err) {
             if (!playwrightProxy) throw err;
             logger.warn(`Playwright failed for ${target.url} (${err.message}) — retrying via proxy`);
             result = await playwrightLimit(() =>
-              renderWithPlaywright(target.url, target.renderWait, true)
+              renderWithPlaywright(target.url, target.renderWait, true, perOpMs)
             );
           }
           html = result.html;
@@ -215,7 +248,11 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           return { sent, errs };
         }
       } else {
-        html = await httpClient.fetchHtml(target.url);
+        html = await withTimeout(
+          httpClient.fetchHtml(target.url),
+          perOpMs,
+          `fetchHtml(${target.url})`
+        );
       }
 
       let products = await extractProducts(html, target);
@@ -454,14 +491,24 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
     async run() {
       const startTime = Date.now();
 
-      // Hard per-target cap: no single target can stall the cycle past
-      // `targetTimeoutMs`, regardless of which sub-operation hangs. The per-
-      // operation timeouts are the primary bound — this is the safety net.
-      const perTargetMs = config.targetTimeoutMs || 180000;
+      // Per-target safety net. Per-operation budgets (`perOpMs`) are applied
+      // inline inside processTarget, so the timer there ticks only against
+      // actual work. THIS outer cap is wider — it has to account for the
+      // deterministic queue wait dynamic targets spend behind playwrightLimit
+      // (otherwise queue position alone trips the cap, regardless of whether
+      // anything actually hung). For dynamic targets, budget =
+      // (queueDepth + 1) × perOpMs; for static, perOpMs is fine since there
+      // is no queue.
+      const dynamicCount = config.targets.filter((t) => t.dynamic).length;
+      const pwConc = config.playwrightConcurrency || 1;
+      const queueRounds = Math.ceil(dynamicCount / pwConc);
+      const dynamicOuterMs = perOpMs * (queueRounds + 1);
+      const budgetFor = (target) => (target.dynamic ? dynamicOuterMs : perOpMs);
+
       const results = await Promise.all(
         config.targets.map((target) =>
           limit(() =>
-            withTimeout(processTarget(target), perTargetMs, `processTarget(${target.url})`).catch((err) => {
+            withTimeout(processTarget(target), budgetFor(target), `processTarget(${target.url})`).catch((err) => {
               logger.error(`processTarget exceeded its budget`, { url: target.url, error: err.message });
               return { sent: 0, errs: [`${target.url}: ${err.message}`] };
             })
