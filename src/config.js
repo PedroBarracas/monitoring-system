@@ -84,6 +84,9 @@ function loadConfig(env = process.env) {
         'sleeve',
         'starter deck',
         'playmat',
+        'yugioh',
+        'yu-gi-oh',
+        'hobbit',
       ]),
       // Consecutive cycles a product must be absent before it's marked removed.
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
