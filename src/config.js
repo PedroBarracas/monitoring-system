@@ -68,12 +68,12 @@ function loadConfig(env = process.env) {
       enabled: env.PRODUCTS_ENABLED !== 'false',
       targets: parseJsonArray(env.PRODUCT_TARGETS) || loadTargetsFile(),
       concurrency: parseInt(env.PRODUCT_CONCURRENCY, 10) || 15,
-      // Separate cap on concurrent Chromium launches. The deployed Linux VM
-      // throws `spawn ... EAGAIN` (kernel can't fork) and cascading "browser
-      // has been closed" errors when several Chromiums launch in parallel —
-      // serialize them so the OS doesn't get overwhelmed. Tune up only if the
-      // host comfortably handles 2+ headless browsers at once.
-      playwrightConcurrency: parseInt(env.PRODUCT_PLAYWRIGHT_CONCURRENCY, 10) || 1,
+      // Cap on concurrent Playwright contexts (tabs in the persistent browser).
+      // Chromium is launched ONCE per process now, so this no longer guards
+      // against launch-storm crashes (EAGAIN, driver corruption). It's purely
+      // a memory/CPU governor for small VMs that can't run many heavy renders
+      // in parallel. Bump higher (8-15) on well-resourced hosts.
+      playwrightConcurrency: parseInt(env.PRODUCT_PLAYWRIGHT_CONCURRENCY, 10) || 4,
       // Case-insensitive substring filter on product titles. Any extracted
       // product whose title contains one of these is dropped before insertion
       // /notification — useful to skip accessory products (sleeves, playmats,
