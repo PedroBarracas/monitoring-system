@@ -56,10 +56,10 @@ function categoryOf(url) {
 
 function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
-  // Cap on concurrent Playwright contexts (tabs in the persistent browser).
-  // Chromium itself can handle many tabs, but a small VM running 9+ heavy
-  // page renders in parallel can OOM — default 4 is a balanced cap.
-  const playwrightLimit = createLimiter(config.playwrightConcurrency || 4);
+  // Cap on concurrent Chromium launches. Each render launches its own browser
+  // (no persistent state), and the deployed Linux VM throws `spawn EAGAIN`
+  // when several launch in parallel. Default 1 = serialized.
+  const playwrightLimit = createLimiter(config.playwrightConcurrency || 1);
   const missingThreshold = config.removalThreshold || 3;
   // Per-operation budget: applied INLINE around each network op (fetchHtml,
   // renderWithPlaywright). Timer ticks against actual work, not queue wait
@@ -105,84 +105,70 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
     }
   }
 
-  // Persistent browser: launch Chromium ONCE per process and reuse it across
-  // cycles. Each render gets a fresh context (cheap, ~100ms) instead of a
-  // fresh browser (~3-5s). This avoids the failure mode where repeated
-  // launch+SIGKILL cycles corrupt Playwright's internal driver state and
-  // every subsequent launch fails with "Target page, context or browser has
-  // been closed" until the Node process is restarted.
-  let browserPromise = null;
-  async function getBrowser() {
-    if (browserPromise) {
-      const cached = await browserPromise.catch(() => null);
-      if (cached && cached.isConnected()) return cached;
-      browserPromise = null;
-    }
-    browserPromise = chromium.launch({
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-http2',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-      ],
-      timeout: 30000,
-      // Per-context proxy mode: lets each newContext() pick proxy vs direct.
-      // The literal "per-context" string is Playwright's placeholder for this.
-      proxy: { server: 'per-context' },
-    });
-    // Wire up disconnect handling so the next call relaunches automatically.
-    browserPromise
-      .then((b) => {
-        logger.info('Persistent Chromium launched');
-        b.on('disconnected', () => {
-          logger.warn('Persistent browser disconnected — will re-launch on next render');
-          browserPromise = null;
-        });
-      })
-      .catch((err) => {
-        logger.warn(`Persistent browser launch failed: ${err.message}`);
-        browserPromise = null;
-      });
-    return browserPromise;
-  }
-
-  // Render a page using the persistent browser, optionally through the proxy.
-  // `deadlineMs` bounds the work itself: when it fires we close the *context*
-  // (not the browser), which interrupts the in-flight page action. The browser
-  // stays alive for the next caller. No more SIGKILL → no more driver corruption.
+  // Render a page with Playwright, optionally through the proxy. Per-cycle
+  // launch (Chromium is created and torn down each render), no persistent
+  // state.
+  //
+  // The combination that avoids Playwright's driver corruption:
+  //
+  // 1. Proxy is configured AT LAUNCH TIME, only when `useProxy` is true. No
+  //    per-context placeholder ("per-context") — that silently routed direct
+  //    traffic through the real proxy and burned bandwidth on every direct
+  //    fetch.
+  //
+  // 2. Graceful cleanup sequence in `finally`: page → context → browser.
+  //    Closing the inner handles first lets `browser.close()` finish quickly
+  //    because no in-flight operations remain. This eliminates the hang that
+  //    used to trigger the SIGKILL fallback.
+  //
+  // 3. If `browser.close()` does hang, we send SIGTERM (cooperative) instead
+  //    of SIGKILL. Chromium handles SIGTERM by exiting cleanly, which lets
+  //    Playwright's IPC pipe tear down properly. SIGKILL corrupted the
+  //    driver's bookkeeping and made every subsequent `chromium.launch()`
+  //    fail with "Target page, context or browser has been closed" until the
+  //    Node process restarted.
   async function renderWithPlaywright(url, renderWait, useProxy, deadlineMs) {
+    let browser;
     let context;
+    let page;
     let deadlineTimer;
     let timedOut = false;
 
     if (deadlineMs) {
       deadlineTimer = setTimeout(() => {
         timedOut = true;
-        if (context) context.close().catch(() => { /* already gone */ });
+        if (browser) {
+          // Force-close to interrupt the in-flight page action; the finally
+          // block will run the full graceful cleanup. Playwright's close is
+          // idempotent so the second call from finally is a no-op.
+          browser.close().catch(() => {});
+        }
       }, deadlineMs);
     }
 
     try {
-      const browser = await getBrowser();
-      const contextOpts = {
+      browser = await chromium.launch({
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-http2',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage',
+        ],
+        timeout: 30000,
+        ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
+      });
+      context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         extraHTTPHeaders: {
           'sec-ch-ua': '"Chromium";v="131", "Google Chrome";v="131", "Not-A.Brand";v="99"',
           'sec-ch-ua-mobile': '?0',
           'sec-ch-ua-platform': '"Windows"',
         },
-      };
-      // Per-context proxy — flipped in only when this render call wants the
-      // proxy IP. Each new context opens a fresh upstream connection, so
-      // rotating proxies (e.g. MarsProxies) still get a fresh exit IP per call.
-      if (useProxy && playwrightProxy) {
-        contextOpts.proxy = playwrightProxy;
-      }
-      context = await browser.newContext(contextOpts);
+      });
       context.setDefaultTimeout(30000);
       context.setDefaultNavigationTimeout(30000);
-      const page = await context.newPage();
+      page = await context.newPage();
       const response = await page.goto(url, { waitUntil: 'load', timeout: 30000 });
       await page.waitForTimeout(renderWait || 5000);
       return { status: response ? response.status() : null, html: await page.content() };
@@ -193,10 +179,21 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
       throw err;
     } finally {
       if (deadlineTimer) clearTimeout(deadlineTimer);
+      // Inside-out close: empties the browser of pending work before asking
+      // it to shut down, so browser.close() rarely hangs.
+      if (page) {
+        await withTimeout(page.close(), 3000, 'page.close').catch(() => {});
+      }
       if (context) {
-        await withTimeout(context.close(), 5000, 'context.close').catch(() => {
-          // context.close hanging is not fatal — the browser keeps running and
-          // the leaked context will be GC'd when its page is closed.
+        await withTimeout(context.close(), 3000, 'context.close').catch(() => {});
+      }
+      if (browser) {
+        await withTimeout(browser.close(), 10000, 'browser.close').catch(() => {
+          logger.warn(`browser.close() hung for ${url} — sending SIGTERM`);
+          // SIGTERM, NOT SIGKILL: SIGTERM lets Chromium and Playwright's
+          // driver pipe close cleanly. SIGKILL is the trigger for the
+          // driver-corruption failure mode.
+          try { browser.process()?.kill('SIGTERM'); } catch { /* already gone */ }
         });
       }
     }

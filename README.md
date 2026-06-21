@@ -63,7 +63,7 @@ cp .env.example .env
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
 | `PRODUCT_EXCLUDE_KEYWORDS` | Case-insensitive title-substring blocklist. Comma-separated (`sleeves,playmat,starter deck`) or JSON array. Matching products are dropped before insert/notification. | `sleeves, sleeve, starter deck, playmat, yugioh, yu-gi-oh, hobbit` |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
-| `PRODUCT_PLAYWRIGHT_CONCURRENCY` | Max concurrent Playwright contexts (tabs in the persistent browser). Chromium is launched once per process, so this is purely a memory/CPU governor — bump higher on well-resourced hosts. | `4` |
+| `PRODUCT_PLAYWRIGHT_CONCURRENCY` | Max concurrent Chromium launches. Each render launches its own browser; serializing avoids `spawn EAGAIN` and cascading "browser has been closed" errors on small VMs. | `1` |
 | `PRODUCT_REMOVAL_THRESHOLD` | Consecutive cycles a product must be absent before it's marked removed (removal hysteresis — absorbs flaky scrapes) | `3` |
 | `PRODUCT_TARGET_TIMEOUT_MS` | Hard upper bound (ms) on a single target's processing. Belt to the per-operation timeouts — guarantees no single target can stall the whole cycle. | `180000` |
 | `CURRENCY_RATES_EUR` | JSON object of `{ "CURRENCY": rateToEur }` overrides for the static EUR-conversion table shown in notifications (e.g. `{"GBP":1.25}`) | built-in defaults |
