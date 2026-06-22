@@ -10,6 +10,7 @@ Node.js product monitoring system that scrapes e-commerce sites and sends Discor
 - **Dynamic rendering** — Playwright support for JavaScript-rendered sites
 - **Cron scheduling** — configurable polling interval
 - **Dual notifications** — Discord webhooks or Telegram bot messages
+- **Conditional HTTP cache** — `ETag`/`If-Modified-Since` per source URL, with a 1h max-age TTL. Unchanged pages return 304 (near-zero bytes) instead of re-sending the full body — big proxy-bandwidth saver
 
 ## Prerequisites
 

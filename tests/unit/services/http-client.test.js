@@ -77,6 +77,82 @@ describe('http-client', () => {
     });
   });
 
+  describe('fetchHtmlConditional', () => {
+    function mockResponse({ status, body = '', headers = {} } = {}) {
+      const headerMap = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        text: () => Promise.resolve(body),
+        headers: { get: (name) => headerMap.get(name.toLowerCase()) || null },
+      };
+    }
+
+    test('sends If-None-Match / If-Modified-Since when validators are supplied', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({ status: 304, headers: { etag: 'W/"abc"' } }));
+
+      await client.fetchHtmlConditional('https://example.com', {
+        etag: 'W/"abc"',
+        lastModified: 'Wed, 21 Oct 2026 07:28:00 GMT',
+      });
+
+      const call = undici.fetch.mock.calls[0];
+      expect(call[1].headers['If-None-Match']).toBe('W/"abc"');
+      expect(call[1].headers['If-Modified-Since']).toBe('Wed, 21 Oct 2026 07:28:00 GMT');
+    });
+
+    test('returns { status: 304, html: null } when server says unchanged', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({ status: 304, headers: { etag: 'W/"new"' } }));
+
+      const result = await client.fetchHtmlConditional('https://example.com', { etag: 'W/"old"' });
+      expect(result.status).toBe(304);
+      expect(result.html).toBeNull();
+      expect(result.etag).toBe('W/"new"');
+    });
+
+    test('falls back to the sent ETag when 304 omits it', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({ status: 304 }));
+
+      const result = await client.fetchHtmlConditional('https://example.com', { etag: 'W/"old"' });
+      expect(result.etag).toBe('W/"old"');
+    });
+
+    test('returns { status: 200, html, etag, lastModified } on fresh content', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({
+        status: 200,
+        body: '<html>fresh</html>',
+        headers: { etag: 'W/"v2"', 'last-modified': 'Thu, 22 Oct 2026 08:00:00 GMT' },
+      }));
+
+      const result = await client.fetchHtmlConditional('https://example.com', { etag: 'W/"v1"' });
+      expect(result.status).toBe(200);
+      expect(result.html).toBe('<html>fresh</html>');
+      expect(result.etag).toBe('W/"v2"');
+      expect(result.lastModified).toBe('Thu, 22 Oct 2026 08:00:00 GMT');
+    });
+
+    test('throws on a non-304 / non-2xx response', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({ status: 500 }));
+      await expect(client.fetchHtmlConditional('https://example.com', {})).rejects.toThrow('HTTP 500');
+    });
+
+    test('works with no validators (acts as a plain GET)', async () => {
+      undici.fetch.mockResolvedValue(mockResponse({
+        status: 200,
+        body: '<html>first</html>',
+        headers: { etag: 'W/"v1"' },
+      }));
+
+      const result = await client.fetchHtmlConditional('https://example.com');
+      expect(result.status).toBe(200);
+      expect(result.html).toBe('<html>first</html>');
+      // No conditional headers should be sent on a no-validator call.
+      const call = undici.fetch.mock.calls[0];
+      expect(call[1].headers['If-None-Match']).toBeUndefined();
+      expect(call[1].headers['If-Modified-Since']).toBeUndefined();
+    });
+  });
+
   describe('proxy fallback', () => {
     test('retries through the proxy on a 429', async () => {
       const proxied = createHttpClient({

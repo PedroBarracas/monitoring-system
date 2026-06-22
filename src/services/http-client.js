@@ -145,6 +145,42 @@ function createHttpClient({ logger, timeout = 15000, proxyUrl = '' } = {}) {
       }
       return response.text();
     },
+
+    // Conditional HTML fetch. Sends If-None-Match / If-Modified-Since when
+    // validators are supplied and returns a discriminated result so the caller
+    // can distinguish 304 (skip extraction) from 200 (extract + update cache).
+    //
+    // Returns:
+    //   { status: 304, html: null, etag, lastModified }   ← server said unchanged
+    //   { status: 200, html, etag, lastModified }         ← fresh content
+    //   throws on other non-2xx statuses or network errors (same as fetchHtml).
+    async fetchHtmlConditional(url, validators = {}, options = {}) {
+      const { etag, lastModified } = validators;
+      const condHeaders = { ...(options.headers || {}) };
+      if (etag) condHeaders['If-None-Match'] = etag;
+      if (lastModified) condHeaders['If-Modified-Since'] = lastModified;
+
+      const response = await request(url, { ...options, headers: condHeaders });
+
+      if (response.status === 304) {
+        return {
+          status: 304,
+          html: null,
+          // Servers may omit ETag on 304; fall back to what we sent.
+          etag: response.headers.get('etag') || etag || null,
+          lastModified: response.headers.get('last-modified') || lastModified || null,
+        };
+      }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} from ${url}`);
+      }
+      return {
+        status: 200,
+        html: await response.text(),
+        etag: response.headers.get('etag') || null,
+        lastModified: response.headers.get('last-modified') || null,
+      };
+    },
   };
 }
 

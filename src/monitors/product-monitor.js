@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const cssExtractor = require('../extractors/css-extractor');
 const jsonldExtractor = require('../extractors/jsonld-extractor');
 const heuristicExtractor = require('../extractors/heuristic-extractor');
@@ -6,6 +7,18 @@ const OOS_KEYWORDS = require('../utils/oos-keywords');
 const { checkDetailPageStock } = require('../utils/detail-stock-checker');
 const { formatPriceDisplay } = require('../utils/price');
 const { shipsToPortugal } = require('../utils/ships-to-portugal');
+
+// Canonical hash of an extracted product list. Hashing the *extracted* data
+// instead of the raw HTML avoids false positives from cosmetic noise (CSRF
+// tokens, dynamic ads, build hashes). Captures product membership, stock, and
+// price — the things we care about for "did this page meaningfully change".
+function hashProductList(products) {
+  const canonical = products
+    .map((p) => `${p.productId}|${p.inStock}|${p.price || ''}`)
+    .sort()
+    .join('\n');
+  return crypto.createHash('sha256').update(canonical).digest('hex');
+}
 
 function resolveUrl(url, base) {
   if (!url) return base;
@@ -54,7 +67,13 @@ function categoryOf(url) {
   return null;
 }
 
-function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier, httpClient, config, logger }) {
+// HTTP-cache TTL: force a full GET at least every CACHE_TTL_MS regardless of
+// stored validators. Bounds how long a stale 304 (from a misbehaving CDN or
+// origin) can lie to us. 1 hour pairs well with a 10-min cron — worst-case
+// staleness is ~6 cycles before we re-extract.
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifiers, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
   // Cap on concurrent Chromium launches. Each render launches its own browser
   // (no persistent state), and the deployed Linux VM throws `spawn EAGAIN`
@@ -230,6 +249,11 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
 
     try {
       let html;
+      // Set by the conditional-GET branch when the server returned 200. We
+      // defer the source_cache upsert (and the lie-detection hash comparison)
+      // until after extraction, when we have the canonical product list to
+      // hash.
+      let pendingFullFetchUpdate = null;
 
       if (target.dynamic) {
         if (!chromium) {
@@ -267,7 +291,52 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
           errs.push(`${target.url}: ${err.message}`);
           return { sent, errs };
         }
+      } else if (sourceCacheRepo && typeof httpClient.fetchHtmlConditional === 'function') {
+        // Conditional GET: send the stored ETag / Last-Modified so the server
+        // can answer 304 Not Modified (near-zero bytes) instead of re-sending
+        // the same body. Skips the proxy bandwidth entirely on unchanged pages.
+        //
+        // Falls back to an unconditional GET when:
+        //   - no validators stored yet (first cycle on this target)
+        //   - last full fetch is older than CACHE_TTL_MS (TTL safety net
+        //     against a misbehaving CDN that keeps serving phantom 304s)
+        //   - source has been caught lying (conditional_disabled flag)
+        const cached = sourceCacheRepo.get(target.url);
+        const ttlExpired = !cached || (Date.now() - new Date(cached.last_full_fetch_at + 'Z').getTime()) > CACHE_TTL_MS;
+        const useConditional =
+          cached &&
+          (cached.etag || cached.last_modified) &&
+          !ttlExpired &&
+          !cached.conditional_disabled;
+
+        const validators = useConditional
+          ? { etag: cached.etag, lastModified: cached.last_modified }
+          : {};
+        const result = await withTimeout(
+          httpClient.fetchHtmlConditional(target.url, validators),
+          perOpMs,
+          `fetchHtmlConditional(${target.url})`
+        );
+
+        if (result.status === 304) {
+          // Unchanged. Refresh validators (server may have rotated them while
+          // serving the same body) and mark had_304_since_last so the next
+          // full GET can run the lie-detection comparison. Skipping extraction
+          // here is equivalent to "every previously-seen product is still
+          // present" — removal hysteresis only fires when products are ABSENT
+          // from a fresh extraction.
+          sourceCacheRepo.refreshValidators(target.url, result.etag, result.lastModified);
+          logger.info(`304 Not Modified for ${target.url} — skipping extraction`);
+          return { sent, errs };
+        }
+        html = result.html;
+        // Defer the upsertFullFetch + lie-detection until after extraction —
+        // we need the extracted product list to compute the content hash.
+        // See the post-extraction block below.
+        pendingFullFetchUpdate = { cached, result };
       } else {
+        // Fallback: plain fetchHtml. Used by tests and any wiring that
+        // didn't supply a sourceCacheRepo.
         html = await withTimeout(
           httpClient.fetchHtml(target.url),
           perOpMs,
@@ -293,6 +362,25 @@ function createProductMonitor({ productRepo, alertRepo, notifiers, errorNotifier
         if (dropped > 0) {
           logger.info(`Filtered ${dropped} product(s) by title keywords from ${target.url}`);
         }
+      }
+
+      // Lie-detection + source_cache upsert for the conditional-GET 200 path.
+      // We do this after the keyword filter so the hash reflects the
+      // "interesting" product set, not noise like sleeves.
+      if (pendingFullFetchUpdate) {
+        const { cached, result } = pendingFullFetchUpdate;
+        const newHash = hashProductList(products);
+        // Was there a 304 since the last full GET? If so, and the content
+        // actually changed, the server lied about "Not Modified" during the
+        // TTL window — disable conditional GETs for this source from now on.
+        if (cached && cached.had_304_since_last && cached.content_hash && cached.content_hash !== newHash) {
+          logger.warn(
+            `Lying 304 detected for ${target.url} — content changed during a "Not Modified" window. ` +
+            `Disabling conditional GETs for this source.`
+          );
+          sourceCacheRepo.disableConditional(target.url);
+        }
+        sourceCacheRepo.upsertFullFetch(target.url, result.etag, result.lastModified, newHash);
       }
 
       if (target.detailStock && products.length > 0) {

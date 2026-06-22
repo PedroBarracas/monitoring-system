@@ -42,7 +42,39 @@ function runMigrations(db) {
       details     TEXT NOT NULL,
       sent_at     TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- ETag / Last-Modified per source URL for conditional GETs. The TTL on
+    -- last_full_fetch_at is what caps how long a misbehaving server (or stale
+    -- CDN cache) can lie to us via a phantom 304.
+    --
+    -- content_hash: SHA-256 of the canonical extracted product list from the
+    -- last full GET. Used to detect "lying 304s" — when the TTL fires and the
+    -- new full-GET hash differs from the stored one AND we'd received any 304s
+    -- since the last full fetch, we know the server was claiming "unchanged"
+    -- on a body that actually had changed. Such sources get conditional_disabled
+    -- set and are excluded from the conditional path going forward.
+    CREATE TABLE IF NOT EXISTS source_cache (
+      source_url            TEXT PRIMARY KEY,
+      etag                  TEXT,
+      last_modified         TEXT,
+      last_full_fetch_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      content_hash          TEXT,
+      had_304_since_last    INTEGER NOT NULL DEFAULT 0,
+      conditional_disabled  INTEGER NOT NULL DEFAULT 0
+    );
   `);
+
+  // Backfill columns added after the source_cache table shipped.
+  const sourceCacheCols = db.prepare("PRAGMA table_info('source_cache')").all();
+  if (!sourceCacheCols.some((c) => c.name === 'content_hash')) {
+    db.exec("ALTER TABLE source_cache ADD COLUMN content_hash TEXT");
+  }
+  if (!sourceCacheCols.some((c) => c.name === 'had_304_since_last')) {
+    db.exec("ALTER TABLE source_cache ADD COLUMN had_304_since_last INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!sourceCacheCols.some((c) => c.name === 'conditional_disabled')) {
+    db.exec("ALTER TABLE source_cache ADD COLUMN conditional_disabled INTEGER NOT NULL DEFAULT 0");
+  }
 
   // Backfill columns added after the products table shipped.
   const cols = db.prepare("PRAGMA table_info('products')").all();

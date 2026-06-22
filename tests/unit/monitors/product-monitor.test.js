@@ -1038,4 +1038,298 @@ describe('product-monitor', () => {
       expect(mockProductRepo.insertProduct).toHaveBeenCalledTimes(4);
     });
   });
+
+  describe('conditional GET (source cache)', () => {
+    const TARGET_URL = 'https://shop.example.com/x';
+    const baseTarget = {
+      url: TARGET_URL,
+      selectors: DEFAULT_PRODUCT_SELECTORS,
+      extractor: 'css',
+      dynamic: false,
+    };
+
+    function mkSourceCacheRepo(initial = null) {
+      let row = initial;
+      return {
+        get: jest.fn(() => row),
+        upsertFullFetch: jest.fn((_url, etag, lastModified, contentHash) => {
+          row = {
+            source_url: TARGET_URL,
+            etag: etag || null,
+            last_modified: lastModified || null,
+            last_full_fetch_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            content_hash: contentHash || null,
+            had_304_since_last: 0,
+            conditional_disabled: (row && row.conditional_disabled) || 0,
+          };
+        }),
+        refreshValidators: jest.fn((_url, etag, lastModified) => {
+          if (row) {
+            row.etag = etag || null;
+            row.last_modified = lastModified || null;
+            row.had_304_since_last = 1;
+          }
+        }),
+        disableConditional: jest.fn(() => {
+          if (row) row.conditional_disabled = 1;
+        }),
+        _row: () => row,
+      };
+    }
+
+    function mkClient() {
+      return {
+        fetchHtml: jest.fn(),
+        fetchHtmlConditional: jest.fn(),
+      };
+    }
+
+    test('first cycle: no validators stored, plain GET, validators captured', async () => {
+      const repo = mkSourceCacheRepo(null);
+      const client = mkClient();
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 200,
+        html: PRODUCT_HTML,
+        etag: 'W/"v1"',
+        lastModified: 'Wed, 21 Oct 2026 07:28:00 GMT',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      mockProductRepo.countBySource.mockReturnValue(0);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      await m.run();
+
+      // No conditional headers sent on the first call.
+      expect(client.fetchHtmlConditional).toHaveBeenCalledWith(TARGET_URL, {});
+      // Validators captured for next cycle (the 4th arg is the content hash).
+      expect(repo.upsertFullFetch).toHaveBeenCalledWith(
+        TARGET_URL,
+        'W/"v1"',
+        'Wed, 21 Oct 2026 07:28:00 GMT',
+        expect.any(String)
+      );
+      // Extraction still ran.
+      expect(mockProductRepo.insertProduct).toHaveBeenCalled();
+    });
+
+    test('cached validators within TTL: sends conditional GET', async () => {
+      const repo = mkSourceCacheRepo({
+        source_url: TARGET_URL,
+        etag: 'W/"v1"',
+        last_modified: 'Wed, 21 Oct 2026 07:28:00 GMT',
+        last_full_fetch_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      });
+      const client = mkClient();
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 304,
+        html: null,
+        etag: 'W/"v1"',
+        lastModified: 'Wed, 21 Oct 2026 07:28:00 GMT',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      await m.run();
+
+      expect(client.fetchHtmlConditional).toHaveBeenCalledWith(TARGET_URL, {
+        etag: 'W/"v1"',
+        lastModified: 'Wed, 21 Oct 2026 07:28:00 GMT',
+      });
+      // 304 → no extraction, no insert/update.
+      expect(mockProductRepo.insertProduct).not.toHaveBeenCalled();
+      expect(mockProductRepo.updateProduct).not.toHaveBeenCalled();
+      // Validators refreshed (not full-fetch reset).
+      expect(repo.refreshValidators).toHaveBeenCalled();
+      expect(repo.upsertFullFetch).not.toHaveBeenCalled();
+    });
+
+    test('caught lying: TTL-forced full GET sees changed content after a 304 → disables conditional', async () => {
+      const recently = new Date(Date.now() - 5 * 60 * 1000)
+        .toISOString().replace('T', ' ').slice(0, 19);
+      const repo = mkSourceCacheRepo({
+        source_url: TARGET_URL,
+        etag: 'W/"stale"',
+        last_modified: null,
+        last_full_fetch_at: recently,
+        // Hash of an OLD product set (different from the PRODUCT_HTML one).
+        content_hash: 'previous-fake-hash',
+        had_304_since_last: 1, // a 304 happened since the last full fetch
+        conditional_disabled: 0,
+      });
+      const client = mkClient();
+      // Server now returns 200 with the (different) PRODUCT_HTML content.
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 200,
+        html: PRODUCT_HTML,
+        etag: 'W/"new"',
+        lastModified: 'new',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      mockProductRepo.countBySource.mockReturnValue(0);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      await m.run();
+
+      // Lie-detection should fire: content_hash differs AND had_304_since_last.
+      expect(repo.disableConditional).toHaveBeenCalledWith(TARGET_URL);
+      // upsert still runs to record the new hash + reset state.
+      expect(repo.upsertFullFetch).toHaveBeenCalled();
+    });
+
+    test('honest 304 stream: hash unchanged after TTL-forced GET → conditional stays enabled', async () => {
+      // Pre-compute the hash the monitor will see for PRODUCT_HTML's products.
+      // PRODUCT_HTML has 3 products: prod-001 (in), prod-002 (out), prod-003 (in).
+      const crypto = require('crypto');
+      const expectedHash = crypto.createHash('sha256').update(
+        ['prod-001|1|', 'prod-002|0|', 'prod-003|1|'].sort().join('\n')
+      ).digest('hex');
+
+      const recently = new Date(Date.now() - 5 * 60 * 1000)
+        .toISOString().replace('T', ' ').slice(0, 19);
+      const repo = mkSourceCacheRepo({
+        source_url: TARGET_URL,
+        etag: 'W/"v1"',
+        last_modified: null,
+        last_full_fetch_at: recently,
+        content_hash: expectedHash, // hash matches what extraction will produce
+        had_304_since_last: 1,
+        conditional_disabled: 0,
+      });
+      const client = mkClient();
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 200,
+        html: PRODUCT_HTML,
+        etag: 'W/"v2"',
+        lastModified: 'now',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      mockProductRepo.countBySource.mockReturnValue(0);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      await m.run();
+
+      // Server was honest: hash unchanged after the 304s. Conditional stays on.
+      expect(repo.disableConditional).not.toHaveBeenCalled();
+      expect(repo.upsertFullFetch).toHaveBeenCalled();
+    });
+
+    test('conditional_disabled flag: skips conditional path entirely', async () => {
+      const repo = mkSourceCacheRepo({
+        source_url: TARGET_URL,
+        etag: 'W/"abc"',
+        last_modified: null,
+        last_full_fetch_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        content_hash: 'doesnt-matter',
+        had_304_since_last: 0,
+        conditional_disabled: 1, // poisoned source — force plain GET
+      });
+      const client = mkClient();
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 200,
+        html: PRODUCT_HTML,
+        etag: 'W/"newer"',
+        lastModified: 'now',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      mockProductRepo.countBySource.mockReturnValue(0);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      await m.run();
+
+      // No conditional headers — plain GET despite stored validators.
+      expect(client.fetchHtmlConditional).toHaveBeenCalledWith(TARGET_URL, {});
+    });
+
+    test('TTL expired: forces unconditional GET even when validators exist', async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+        .toISOString().replace('T', ' ').slice(0, 19);
+      const repo = mkSourceCacheRepo({
+        source_url: TARGET_URL,
+        etag: 'W/"v1"',
+        last_modified: 'old',
+        last_full_fetch_at: twoHoursAgo,
+      });
+      const client = mkClient();
+      client.fetchHtmlConditional.mockResolvedValue({
+        status: 200,
+        html: PRODUCT_HTML,
+        etag: 'W/"v2"',
+        lastModified: 'now',
+      });
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        sourceCacheRepo: repo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: client,
+        config: { targets: [baseTarget], concurrency: 5 },
+        logger: mockLogger,
+      });
+
+      mockProductRepo.countBySource.mockReturnValue(0);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+
+      await m.run();
+
+      // TTL expired → empty validators on the request.
+      expect(client.fetchHtmlConditional).toHaveBeenCalledWith(TARGET_URL, {});
+      // 200 → full upsert resets the TTL (4th arg = content hash).
+      expect(repo.upsertFullFetch).toHaveBeenCalledWith(TARGET_URL, 'W/"v2"', 'now', expect.any(String));
+    });
+  });
 });

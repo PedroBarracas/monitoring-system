@@ -10,6 +10,7 @@ const { createDiscordService } = require('./services/discord');
 const { createAlertRepository } = require('./db/alert-repository');
 // const { createCryptoRepository } = require('./db/crypto-repository');
 const { createProductRepository } = require('./db/product-repository');
+const { createSourceCacheRepository } = require('./db/source-cache-repository');
 // const { createNewsRepository } = require('./db/news-repository');
 // const { createCryptoMonitor } = require('./monitors/crypto-monitor');
 const { createProductMonitor } = require('./monitors/product-monitor');
@@ -109,6 +110,7 @@ if (config.products.enabled && config.products.targets.length > 0) {
     createProductMonitor({
       productRepo: createProductRepository(db),
       alertRepo,
+      sourceCacheRepo: createSourceCacheRepository(db),
       notifiers,
       errorNotifier,
       httpClient: productHttpClient,
