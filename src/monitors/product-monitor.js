@@ -8,6 +8,16 @@ const { checkDetailPageStock } = require('../utils/detail-stock-checker');
 const { formatPriceDisplay } = require('../utils/price');
 const { shipsToPortugal } = require('../utils/ships-to-portugal');
 
+// Self-heal: when Playwright's driver gets into a state where every
+// `chromium.launch()` fails with this exact message, no in-process recovery
+// works — the driver's IPC bookkeeping is corrupted and only a fresh Node
+// process clears it. Detect N consecutive failures with this signature and
+// `process.exit(1)` so the container supervisor (Docker `restart:
+// unless-stopped`) brings us back up clean.
+const DRIVER_CORRUPTION_SIGNATURE = 'Target page, context or browser has been closed';
+const DRIVER_CORRUPTION_THRESHOLD = 3;
+let consecutiveDriverErrors = 0;
+
 // Canonical hash of an extracted product list. Hashing the *extracted* data
 // instead of the raw HTML avoids false positives from cosmetic noise (CSRF
 // tokens, dynamic ads, build hashes). Captures product membership, stock, and
@@ -177,6 +187,8 @@ function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifie
         timeout: 30000,
         ...(useProxy && playwrightProxy ? { proxy: playwrightProxy } : {}),
       });
+      // Successful launch — the driver is healthy; reset the corruption counter.
+      consecutiveDriverErrors = 0;
       context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         extraHTTPHeaders: {
@@ -194,6 +206,18 @@ function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifie
     } catch (err) {
       if (timedOut) {
         throw new Error(`renderWithPlaywright(${url}) timed out after ${deadlineMs}ms`);
+      }
+      // Self-heal: if launch itself failed with the driver-corruption signature,
+      // count it. After `DRIVER_CORRUPTION_THRESHOLD` consecutive errors,
+      // exit(1) so the container supervisor restarts us with a fresh driver.
+      if (!browser && err && err.message && err.message.includes(DRIVER_CORRUPTION_SIGNATURE)) {
+        consecutiveDriverErrors++;
+        logger.warn(`Playwright driver corruption detected (${consecutiveDriverErrors}/${DRIVER_CORRUPTION_THRESHOLD}) for ${url}`);
+        if (consecutiveDriverErrors >= DRIVER_CORRUPTION_THRESHOLD) {
+          logger.error(`Playwright driver is corrupt — exiting for supervisor restart`);
+          // Delay so the warn/error log can flush before the process dies.
+          setTimeout(() => process.exit(1), 1000);
+        }
       }
       throw err;
     } finally {
