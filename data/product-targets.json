@@ -17,6 +17,9 @@
     "url": "https://versusgamecenter.pt/collections/one-piece-card-game?sort_by=created-descending"
   },
   {
+    "url": "https://versusgamecenter.pt/collections/pokemon-tcg-1?sort_by=created-descending"
+  },
+  {
     "url": "https://shop4nerds.pt/categoria-detalhe.php?categoria_id=121"
   },
   {
@@ -232,9 +235,6 @@
     "url": "https://tcg-family.com/collections/pre-vendas-pokemon?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
   },
   {
-    "url": "https://zatu.com/collections/pre-orders-one-piece?sort_by=created-descending"
-  },
-  {
     "url": "https://www.kizoku.life/collections/pokemon?sort_by=created-descending&filter.v.availability=1"
   },
   {
@@ -256,9 +256,6 @@
     "url": "https://thirstymeeples.co.uk/collections/trading-card-game/one-piece-card-game?sort_by=created-descending&filter.v.availability=1"
   },
   {
-    "url": "https://unicorncards.co.uk/one-piece-card-game-op15-booster-display-box-pre-order-april-3-2026"
-  },
-  {
     "url": "https://collectorstorecards.it/collections/preordine-one-piece"
   },
   {
@@ -269,9 +266,6 @@
   },
   {
     "url": "https://miceliongames.com/product-category/juegos-tcg/one-piece/"
-  },
-  {
-    "url": "https://www.zukacards.com/en/collections/one-piece"
   },
   {
     "url": "https://endturn.pt/collections/one-piece-booster-boxes"
@@ -289,16 +283,13 @@
     "url": "https://www.juegoscrisis.com/categoria-producto/jcc/one-piece/"
   },
   {
-    "url": "https://elencuentro.infrecuentes.es/tienda/categoria/tcg/"
+    "url": "https://elencuentro.infrecuentes.es/tienda/categoria/tcg/?e-filter-f84f660-ee_tcg_line=one-piece"
   },
   {
     "url": "https://distritozero.es/categoria/one-piece-632"
   },
   {
     "url": "https://holoplazatcg.com/categoria/one-piece-tcg/"
-  },
-  {
-    "url": "https://comicstores.es/busqueda/listaLibros.php?codMateria=000004000021&tipoArticulo=P0&pagSel=1&codClasificacion=29&codEtiqueta=100149"
   },
   {
     "url": "https://troll2jeux.com/10002430-one-piece"
@@ -451,9 +442,6 @@
     "url": "https://sportkartyabolt.hu/One-Piece"
   },
   {
-    "url": "https://www.europagaming.co.uk/one-piece-card-game?scrollToProduct=one-piece-op15-booster-box&sort=newest&page=2"
-  },
-  {
     "url": "https://www.stalozaidimai.eu/en/collectable-card-games/one-piece-2"
   },
   {
@@ -590,5 +578,73 @@
   ,
   {
     "url": "https://mathom.es/es/4596-pokemon?order=product.date_add.desc"
+  }
+  ,
+  {
+    "url": "https://www.biridama.pt/en/collections/all-pokemon?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  }
+  ,
+  {
+    "url": "https://www.supercollectors.es/categoria-producto/boxes-packs/cartas-pokemon/"
+  }
+  ,
+  {
+    "url": "https://collectorage.com/shop/cartas-tcg/pokemon/"
+  }
+  ,
+  {
+    "url": "https://www.tcgshop.eu/pok%C3%A9mon-engels?sort=newest"
+  }
+  ,
+  {
+    "url": "https://www.zentralgames.es/shop/category/tcgs-one-piece-tcg-10"
+  }
+  ,
+  {
+    "url": "https://www.empiregames.es/categoria-producto/juegos-de-cartas-coleccionables/one-piece-card-game"
+  }
+  ,
+  {
+    "url": "https://www.empiregames.es/categoria-producto/juegos-de-cartas-coleccionables/one-piece-card-game"
+  }
+  ,
+  {
+    "url": "https://www.empiregames.es/categoria-producto/juegos-de-cartas-coleccionables/pokemon-tcg"
+  }
+  ,
+  {
+    "url": "https://cardtreasure.ch/collections/pokemon-preorders"
+  }
+  ,
+  {
+    "url": "https://mbox.pt/product-category/pokemon/?orderby=date&paged=1"
+  }
+  ,
+  {
+    "url": "https://littlerootgames.com/collections/pre-orders"
+  }
+  ,
+  {
+    "url": "https://herofreaks.com/compra/juegos-de-cartas/pokemon-jcc/"
+  }
+  ,
+  {
+    "url": "https://totalcards.net/collections/pokemon-30th-celebration?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=0&sort_by=most-relevant"
+  }
+  ,
+  {
+    "url": "https://confluxgames.com/en/collections/all/pokemon"
+  }
+  ,
+  {
+    "url": "https://www.zukacards.com/collections/pokemon?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  }
+  ,
+  {
+    "url": "https://nerdbank.de/collections/pokemon?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
+  }
+  ,
+  {
+    "url": "https://www.athenscollectibles.gr/el/trading-card-games/pokemon"
   }
 ]
