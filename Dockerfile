@@ -13,6 +13,7 @@ RUN npm ci --omit=dev
 RUN npx playwright install --with-deps chromium
 
 COPY src/ src/
+COPY scripts/ scripts/
 COPY data/product-targets.json data/product-targets.json
 
 EXPOSE 3000

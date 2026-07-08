@@ -5,6 +5,5 @@ data/extraction-diagnostic.json
 .claude/
 coverage/
 tests/
-scripts/
 tmp/
 todo.txt
