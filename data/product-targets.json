@@ -20,9 +20,6 @@
     "url": "https://versusgamecenter.pt/collections/pokemon-tcg-1?sort_by=created-descending"
   },
   {
-    "url": "https://shop4nerds.pt/categoria-detalhe.php?categoria_id=121"
-  },
-  {
     "url": "https://lotusvalley.pt/categoria-produto/trading-card-games/one-piece-card-game/booster-box/",
     "dynamic": true
   },
@@ -182,9 +179,6 @@
   },
   {
     "url": "https://lacuevaroja.com/pokemon-tcg"
-  },
-  {
-    "url": "https://shop4nerds.pt/categoria-detalhe.php?categoria_id=122"
   },
   {
     "url": "https://pokeboxstore.pt/categoria-produto/tcg/ingles/page/3"
@@ -514,10 +508,6 @@
   }
   ,
   {
-    "url": "https://collectorage.com/shop/cartas-tcg/pokemon/"
-  }
-  ,
-  {
     "url": "https://www.tcgshop.eu/pok%C3%A9mon-engels?sort=newest"
   }
   ,
@@ -567,5 +557,9 @@
   ,
   {
     "url": "https://www.athenscollectibles.gr/el/trading-card-games/pokemon"
+  }
+  ,
+  {
+    "url": "https://www.toysrus.pt/Cartas-para-trocar/c/00300100300015?q=%3Arelevance%3Acollection%3APokemon"
   }
 ]
