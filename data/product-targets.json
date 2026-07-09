@@ -548,10 +548,6 @@
   }
   ,
   {
-    "url": "https://www.zukacards.com/collections/pokemon?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
-  }
-  ,
-  {
     "url": "https://nerdbank.de/collections/pokemon?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
   }
   ,
