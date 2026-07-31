@@ -1010,6 +1010,116 @@ describe('product-monitor', () => {
       expect(mockProductRepo.insertProduct).not.toHaveBeenCalled();
     });
 
+    test('ST regex catches dashed and un-dashed codes, skips STARTER/stabbed', async () => {
+      const html = `
+        <html><body>
+          <div class="product-card" data-product-id="a">
+            <h3 class="product-title">One Piece ST-01 Straw Hat Crew</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/a">View</a>
+          </div>
+          <div class="product-card" data-product-id="b">
+            <h3 class="product-title">One Piece ST33 Ultra Starter</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/b">View</a>
+          </div>
+          <div class="product-card" data-product-id="c">
+            <h3 class="product-title">Luffy Sticker Pack</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/c">View</a>
+          </div>
+          <div class="product-card" data-product-id="d">
+            <h3 class="product-title">STARTER PACK Portgas D. Ace</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/d">View</a>
+          </div>
+          <div class="product-card" data-product-id="e">
+            <h3 class="product-title">MASTER Edition Zoro</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/e">View</a>
+          </div>
+        </body></html>
+      `;
+      mockHttpClient.fetchHtml.mockResolvedValue(html);
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [{
+            url: 'https://shop.example.com/x',
+            selectors: DEFAULT_PRODUCT_SELECTORS,
+            extractor: 'css',
+            dynamic: false,
+          }],
+          concurrency: 5,
+          excludeTitleKeywords: ['/\\bst[-\\d]/i'],
+        },
+        logger: mockLogger,
+      });
+
+      await m.run();
+      // ST-01 and ST33 dropped; Sticker/STARTER/MASTER survive.
+      const inserted = mockProductRepo.insertProduct.mock.calls.map((c) => c[0].productId);
+      expect(inserted.sort()).toEqual(['c', 'd', 'e']);
+    });
+
+    test('category-specific exclude list applies only to that category', async () => {
+      const html = `
+        <html><body>
+          <div class="product-card" data-product-id="p1">
+            <h3 class="product-title">Pokemon Battle Deck</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/p1">View</a>
+          </div>
+        </body></html>
+      `;
+      const opHtml = `
+        <html><body>
+          <div class="product-card" data-product-id="op1">
+            <h3 class="product-title">One Piece Ultra Deck</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/op1">View</a>
+          </div>
+        </body></html>
+      `;
+      mockHttpClient.fetchHtml.mockImplementation((url) =>
+        Promise.resolve(url.includes('one-piece') ? opHtml : html)
+      );
+      mockProductRepo.getProduct.mockReturnValue(undefined);
+      mockProductRepo.countBySource.mockReturnValue(0);
+
+      const m = createProductMonitor({
+        productRepo: mockProductRepo,
+        alertRepo: mockAlertRepo,
+        notifiers: { default: mockNotifier },
+        errorNotifier: mockErrorNotifier,
+        httpClient: mockHttpClient,
+        config: {
+          targets: [
+            { url: 'https://shop.example.com/pokemon', selectors: DEFAULT_PRODUCT_SELECTORS, extractor: 'css', dynamic: false },
+            { url: 'https://shop.example.com/one-piece', selectors: DEFAULT_PRODUCT_SELECTORS, extractor: 'css', dynamic: false },
+          ],
+          concurrency: 5,
+          excludeTitleKeywords: [],
+          excludeTitleKeywordsByCategory: {
+            'one-piece': ['deck'],
+          },
+        },
+        logger: mockLogger,
+      });
+
+      await m.run();
+      // Pokemon deck survives (no OP filter applied); One Piece deck is dropped.
+      const inserted = mockProductRepo.insertProduct.mock.calls.map((c) => c[0].productId);
+      expect(inserted).toEqual(['p1']);
+    });
+
     test('no filtering when excludeTitleKeywords is empty', async () => {
       mockHttpClient.fetchHtml.mockResolvedValue(FILTERED_HTML);
       mockProductRepo.getProduct.mockReturnValue(undefined);

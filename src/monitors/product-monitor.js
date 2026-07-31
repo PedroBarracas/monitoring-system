@@ -83,6 +83,32 @@ function categoryOf(url) {
 // staleness is ~6 cycles before we re-extract.
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
+// Turn config keyword entries into matchers. A `/pattern/flags` string
+// becomes a RegExp (with `i` forced on if not already present); anything
+// else is a lowercased substring. Malformed regexes fall back to a
+// substring match on the raw entry so config typos don't crash boot.
+function compileMatchers(keywords) {
+  return (keywords || []).map((raw) => {
+    const s = String(raw).trim();
+    const m = s.match(/^\/(.+)\/([gimsuy]*)$/);
+    if (m) {
+      const flags = m[2].includes('i') ? m[2] : m[2] + 'i';
+      try {
+        return new RegExp(m[1], flags);
+      } catch {
+        return s.toLowerCase();
+      }
+    }
+    return s.toLowerCase();
+  });
+}
+
+function titleMatchesAny(title, matchers) {
+  if (!title || matchers.length === 0) return false;
+  const lower = title.toLowerCase();
+  return matchers.some((m) => (m instanceof RegExp ? m.test(title) : lower.includes(m)));
+}
+
 function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifiers, errorNotifier, httpClient, config, logger }) {
   const limit = createLimiter(config.concurrency || 15);
   // Cap on concurrent Chromium launches. Each render launches its own browser
@@ -95,16 +121,32 @@ function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifie
   // behind playwrightLimit. The outer-loop withTimeout is a wider safety net
   // sized to also cover the deterministic queue wait — see `run()`.
   const perOpMs = config.targetTimeoutMs || 180000;
-  // Title-substring blocklist (lowercased once at startup). Products whose
-  // title contains any of these are dropped after extraction so they never
-  // get inserted or alerted on.
-  const excludeKeywords = (config.excludeTitleKeywords || []).map((k) => String(k).toLowerCase());
+  // Title blocklist matchers, compiled once at startup. Each entry becomes
+  // either a lowercased substring (for `.includes`) or a RegExp (for `.test`).
+  // Regex entries are written as `/pattern/flags` in config so short tokens
+  // like `ST` can require word boundaries — `/\bst\b/i` skips "stabbed" but
+  // matches "ST-01".
+  const globalExcludeMatchers = compileMatchers(config.excludeTitleKeywords);
+  const categoryExcludeMatchers = {};
+  for (const [cat, kws] of Object.entries(config.excludeTitleKeywordsByCategory || {})) {
+    categoryExcludeMatchers[cat] = compileMatchers(kws);
+  }
+
+  function getCategory(target) {
+    return target.category || categoryOf(target.url);
+  }
 
   // Pick the notifier for a target — by explicit `category` field on the target,
   // otherwise auto-detected from the URL. Falls back to `notifiers.default`.
   function pickNotifier(target) {
-    const cat = target.category || categoryOf(target.url);
+    const cat = getCategory(target);
     return (cat && notifiers[cat]) ? notifiers[cat] : notifiers.default;
+  }
+
+  function excludeMatchersFor(target) {
+    const cat = getCategory(target);
+    const extra = (cat && categoryExcludeMatchers[cat]) || [];
+    return extra.length > 0 ? globalExcludeMatchers.concat(extra) : globalExcludeMatchers;
   }
 
   // Resolve Playwright once at creation time (optional dependency)
@@ -376,12 +418,10 @@ function createProductMonitor({ productRepo, alertRepo, sourceCacheRepo, notifie
       // products we're going to drop anyway. Pre-existing DB rows whose title
       // now matches the filter drain quietly via removal hysteresis —
       // products_removed only writes to the alert_log, no Discord alert.
-      if (excludeKeywords.length > 0 && products.length > 0) {
+      const matchers = excludeMatchersFor(target);
+      if (matchers.length > 0 && products.length > 0) {
         const before = products.length;
-        products = products.filter((p) => {
-          const t = (p.title || '').toLowerCase();
-          return !excludeKeywords.some((kw) => t.includes(kw));
-        });
+        products = products.filter((p) => !titleMatchesAny(p.title, matchers));
         const dropped = before - products.length;
         if (dropped > 0) {
           logger.info(`Filtered ${dropped} product(s) by title keywords from ${target.url}`);

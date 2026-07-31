@@ -74,11 +74,12 @@ function loadConfig(env = process.env) {
       // launch in parallel. Default 1 = serialized. Bump only if the host
       // comfortably handles 2+ headless browsers at once.
       playwrightConcurrency: parseInt(env.PRODUCT_PLAYWRIGHT_CONCURRENCY, 10) || 1,
-      // Case-insensitive substring filter on product titles. Any extracted
-      // product whose title contains one of these is dropped before insertion
-      // /notification — useful to skip accessory products (sleeves, playmats,
-      // starter decks) you don't care about. Override via PRODUCT_EXCLUDE_KEYWORDS
-      // (JSON array or comma-separated list).
+      // Case-insensitive title filter. Applied to every target; matching
+      // products are dropped before insertion/notification. Each entry is
+      // either a substring (plain string) or a regex (`/pattern/flags`
+      // syntax) — the regex form is needed for short tokens that would
+      // otherwise hit unrelated words (e.g. `ST` matching `stabbed`).
+      // Override via PRODUCT_EXCLUDE_KEYWORDS (JSON array or comma list).
       excludeTitleKeywords: parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS, [
         'sleeves',
         'sleeve',
@@ -88,6 +89,21 @@ function loadConfig(env = process.env) {
         'yu-gi-oh',
         'hobbit',
       ]),
+      // Additional filters that apply ONLY to targets in a given category
+      // (target.category or auto-detected from URL). Combined with the
+      // global list at match time. Useful when a keyword like "deck" is
+      // noise for one TCG but valid product naming for another.
+      // One Piece defaults strip generic "deck" products plus the ST
+      // starter-deck codes — the regex catches both dashed (ST-01) and
+      // un-dashed (ST33) forms via `\bST` followed by a dash or digit,
+      // so "STARTER", "stabbed", "MASTER" etc. are left alone.
+      excludeTitleKeywordsByCategory: {
+        'one-piece': parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS_ONE_PIECE, [
+          'deck',
+          '/\\bst[-\\d]/i',
+        ]),
+        pokemon: parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS_POKEMON, []),
+      },
       // Consecutive cycles a product must be absent before it's marked removed.
       // Absorbs flaky scrapes (esp. JS-rendered targets) so they don't churn
       // products in/out of the DB and fire spurious "back in stock" alerts.
