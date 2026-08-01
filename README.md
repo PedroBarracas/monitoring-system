@@ -62,8 +62,8 @@ cp .env.example .env
 | `DISCORD_WEBHOOK_URL_POKEMON` | Optional Discord webhook for Pokémon product alerts. URLs containing `pokemon` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `DISCORD_WEBHOOK_URL_ONE_PIECE` | Optional Discord webhook for One Piece product alerts. URLs containing `one-piece` route here; otherwise falls back to `DISCORD_WEBHOOK_URL`. | — |
 | `PRODUCT_TARGETS` | JSON array of target configs (see below) | `[]` |
-| `PRODUCT_EXCLUDE_KEYWORDS` | Case-insensitive title blocklist applied to every target. Comma-separated (`sleeves,playmat,starter deck`) or JSON array. Regex entries use `/pattern/flags` syntax (e.g. `/\bST[-\d]/i` — matches ST-01 and ST33 but skips "STARTER"/"stabbed"). Matching products are dropped before insert/notification. | `sleeves, sleeve, starter deck, playmat, yugioh, yu-gi-oh, hobbit` |
-| `PRODUCT_EXCLUDE_KEYWORDS_ONE_PIECE` | Extra filters applied only to One Piece targets (URL contains `one-piece` or `target.category === "one-piece"`). Same syntax as above; combined with the global list. | `deck, /\bst[-\d]/i` |
+| `PRODUCT_EXCLUDE_KEYWORDS` | Case-insensitive title blocklist applied to every target. Comma-separated (`sleeves,playmat,starter deck`) or JSON array. Regex entries use `/pattern/flags` syntax (e.g. `/\bST[-_\s]*\d/i` — matches `ST-01`, `ST33`, `ST 31` but skips `STARTER`/`stabbed`). Matching products are dropped before insert/notification. | `sleeves, sleeve, starter deck, playmat, yugioh, yu-gi-oh, hobbit` |
+| `PRODUCT_EXCLUDE_KEYWORDS_ONE_PIECE` | Extra filters applied only to One Piece targets (URL contains `one-piece` or `target.category === "one-piece"`). Same syntax as above; combined with the global list. | `deck, /\bst[-_\s]*\d/i` |
 | `PRODUCT_EXCLUDE_KEYWORDS_POKEMON` | Same as above, for Pokémon targets. | (empty) |
 | `PRODUCT_CONCURRENCY` | Max concurrent target fetches | `5` |
 | `PRODUCT_PLAYWRIGHT_CONCURRENCY` | Max concurrent Chromium launches. Each render launches its own browser; serializing avoids `spawn EAGAIN` and cascading "browser has been closed" errors on small VMs. | `1` |

@@ -1010,7 +1010,7 @@ describe('product-monitor', () => {
       expect(mockProductRepo.insertProduct).not.toHaveBeenCalled();
     });
 
-    test('ST regex catches dashed and un-dashed codes, skips STARTER/stabbed', async () => {
+    test('ST regex catches dashed, un-dashed, and spaced codes; skips STARTER/stabbed', async () => {
       const html = `
         <html><body>
           <div class="product-card" data-product-id="a">
@@ -1022,6 +1022,11 @@ describe('product-monitor', () => {
             <h3 class="product-title">One Piece ST33 Ultra Starter</h3>
             <span class="stock-label">In Stock</span>
             <a href="https://shop.example.com/products/b">View</a>
+          </div>
+          <div class="product-card" data-product-id="f">
+            <h3 class="product-title">One Piece Card Game - ST 31 Red Monkey.D.Luffy</h3>
+            <span class="stock-label">In Stock</span>
+            <a href="https://shop.example.com/products/f">View</a>
           </div>
           <div class="product-card" data-product-id="c">
             <h3 class="product-title">Luffy Sticker Pack</h3>
@@ -1058,13 +1063,13 @@ describe('product-monitor', () => {
             dynamic: false,
           }],
           concurrency: 5,
-          excludeTitleKeywords: ['/\\bst[-\\d]/i'],
+          excludeTitleKeywords: ['/\\bst[-_\\s]*\\d/i'],
         },
         logger: mockLogger,
       });
 
       await m.run();
-      // ST-01 and ST33 dropped; Sticker/STARTER/MASTER survive.
+      // ST-01, ST33 and "ST 31" dropped; Sticker/STARTER/MASTER survive.
       const inserted = mockProductRepo.insertProduct.mock.calls.map((c) => c[0].productId);
       expect(inserted.sort()).toEqual(['c', 'd', 'e']);
     });

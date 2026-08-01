@@ -94,13 +94,14 @@ function loadConfig(env = process.env) {
       // global list at match time. Useful when a keyword like "deck" is
       // noise for one TCG but valid product naming for another.
       // One Piece defaults strip generic "deck" products plus the ST
-      // starter-deck codes — the regex catches both dashed (ST-01) and
-      // un-dashed (ST33) forms via `\bST` followed by a dash or digit,
-      // so "STARTER", "stabbed", "MASTER" etc. are left alone.
+      // starter-deck codes. The regex matches `\bST` followed by any
+      // amount of separator (dash / space / underscore) and then a
+      // digit, so it covers `ST-01`, `ST33`, and `ST 31` while leaving
+      // "STARTER", "stabbed", "MASTER", "ST ANDREW" etc. alone.
       excludeTitleKeywordsByCategory: {
         'one-piece': parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS_ONE_PIECE, [
           'deck',
-          '/\\bst[-\\d]/i',
+          '/\\bst[-_\\s]*\\d/i',
         ]),
         pokemon: parseKeywordList(env.PRODUCT_EXCLUDE_KEYWORDS_POKEMON, []),
       },
