@@ -88,6 +88,7 @@ function loadConfig(env = process.env) {
         'yugioh',
         'yu-gi-oh',
         'hobbit',
+        'acrylic',
       ]),
       // Additional filters that apply ONLY to targets in a given category
       // (target.category or auto-detected from URL). Combined with the
