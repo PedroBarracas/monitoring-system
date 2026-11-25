@@ -140,7 +140,7 @@ Diagnostic and utility scripts live in `scripts/`:
 | `diagnose-dynamic.js` | Debug Playwright-based dynamic rendering |
 | `diagnose-containers.js` | Inspect detected product containers on a page |
 | `find-silent-targets.js` | Bucket targets by alert activity (dead / bootstrap-only / dormant / active), measured back from the monitor's last run or `--until YYYY-MM-DD` |
-| `compare-store-prices.js` | Score each store's prices against the cross-store median (One Piece by set code, Pokémon by standard ETB) to flag expensive stores. `--discover-sets` lists set names found in Pokémon ETB titles to build `data/pokemon-sets.json` |
+| `compare-store-prices.js` | Score each store's prices against the cross-store median (One Piece by set code, Pokémon by standard ETB) to flag expensive stores. `--discover-sets` lists set names found in Pokémon ETB titles to build `data/pokemon-sets.json`; `data/one-piece-sets.json` maps One Piece set names to codes for titles without one. Both are ordered by priority (first match wins) |
 
 Run any script with `node scripts/<name>.js`.
 

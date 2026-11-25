@@ -111,9 +111,16 @@ function hostOf(url) {
 
 // ---------- Fingerprinting ----------
 
-// Strip accents so "Pokémon"/"español"/"élite" match plain ASCII patterns.
+// Strip accents so "Pokémon"/"español"/"élite" match plain ASCII patterns,
+// drop apostrophes ("Sea’s" / "Sea's" → "seas") and fold the Unicode dash
+// variants stores paste in ("OP‑13" with a non-breaking hyphen) to "-".
 function normalize(title) {
-  return title.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return title
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/['’‘`´]/g, '')
+    .replace(/[‐-―−]/g, '-')
+    .toLowerCase();
 }
 
 function gameOf(title, sourceUrl) {
@@ -130,42 +137,50 @@ function gameOf(title, sourceUrl) {
   return null;
 }
 
-// One Piece: OP-01..OP-1x, EB-0x (extra boosters), PRB-0x (premium boosters).
-function onePieceSet(t) {
-  const m = t.match(/\b(op|eb|prb)[-_\s]?0?(\d{1,2})\b/);
-  return m ? `${m[1].toUpperCase()}-${m[2].padStart(2, '0')}` : null;
-}
-
-// Pokémon titles rarely carry a set code, so sets are recognised by name.
-// The names come from data/pokemon-sets.json, built from the titles the
-// stores actually use (see --discover-sets) — not from a hand-written list.
+// Set-name dictionaries, built from the titles the stores actually use (see
+// --discover-sets / --unmatched) — not from a hand-written list.
 // Format: { "canonical set": ["alias as it appears in titles", ...] }.
 // Aliases are matched accent-stripped and case-insensitive on word
-// boundaries, longest first, so "paldean fates" wins over "paldea".
-const POKEMON_SETS_PATH = path.join(__dirname, '..', 'data', 'pokemon-sets.json');
-
+// boundaries. FILE ORDER IS PRIORITY: the first entry with a matching alias
+// wins, so a series-wide name like "mega evolution" (which prefixes every
+// set in that series) goes last as the base-set fallback.
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function loadPokemonSets() {
-  if (!fs.existsSync(POKEMON_SETS_PATH)) return [];
-  const raw = JSON.parse(fs.readFileSync(POKEMON_SETS_PATH, 'utf8'));
-  const entries = [];
-  for (const [canonical, aliases] of Object.entries(raw)) {
-    for (const alias of [canonical, ...(aliases || [])]) {
-      const a = normalize(String(alias)).trim();
-      if (a) entries.push([canonical, a, new RegExp(`(^|[^a-z0-9])${escapeRegExp(a)}($|[^a-z0-9])`)]);
-    }
-  }
-  return entries.sort((x, y) => y[1].length - x[1].length);
+function loadSetFile(file) {
+  const p = path.join(__dirname, '..', 'data', file);
+  if (!fs.existsSync(p)) return [];
+  const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+  return Object.entries(raw).map(([canonical, aliases]) => [
+    canonical,
+    [canonical, ...(aliases || [])]
+      .map((a) => normalize(String(a)).trim())
+      .filter(Boolean)
+      .map((a) => new RegExp(`(^|[^a-z0-9])${escapeRegExp(a)}($|[^a-z0-9])`)),
+  ]);
 }
 
-const POKEMON_SETS = loadPokemonSets();
+function matchSet(dict, t) {
+  for (const [canonical, res] of dict) if (res.some((re) => re.test(t))) return canonical;
+  return null;
+}
+
+const POKEMON_SETS = loadSetFile('pokemon-sets.json');
+// One Piece name → code, for titles that carry the set name but no code
+// ("Carrying on his Will Booster Box"). Keys are the codes.
+const ONE_PIECE_SETS = loadSetFile('one-piece-sets.json');
+
+// One Piece: OP-01..OP-1x, EB-0x (extra boosters), PRB-0x (premium boosters).
+// The code wins when present; otherwise fall back to the set name.
+function onePieceSet(t) {
+  const m = t.match(/\b(op|eb|prb)[-_\s]?0?(\d{1,2})\b/);
+  if (m) return `${m[1].toUpperCase()}-${m[2].padStart(2, '0')}`;
+  return matchSet(ONE_PIECE_SETS, t);
+}
 
 function pokemonSet(t) {
-  for (const [canonical, , re] of POKEMON_SETS) if (re.test(t)) return canonical;
-  return null;
+  return matchSet(POKEMON_SETS, t);
 }
 
 // Product type. First match wins, so bigger/more specific formats go first:
@@ -173,14 +188,17 @@ function pokemonSet(t) {
 const TYPES = [
   ['case', /\bcase\b|\bcaisse\b|\bkarton\b|\bcaja (de )?(12|6) /],
   ['premium-collection', /premium (collection|box)|super[\s-]?premium|ultra[\s-]?premium|\bupc\b|\bspc\b/],
-  ['etb', /elite trainer|\betb\b|top[\s-]?trainer|dresseur d.?elite|entrenador de elite|allenatore fuoriclasse/],
+  ['etb', /elite trainer|\betb\b|top[\s-]?trainer|dresseur d.?elite|entrenador (de )?elite|allenatore fuoriclasse/],
   ['booster-bundle', /booster bundle|\bbundle\b|buste di espansione.*6|lot de 6 boosters/],
   ['half-box', /half[\s-]?(box|display)|mini[\s-]?display|\b18 (booster|pack|sobres)/],
-  ['booster-box', /booster[\s-]?(box|display|kiste)|\bdisplay\b|caja de sobres|boite de boosters|box di buste|\b(24|30|36) (booster|pack|sobres|buste)|\bbox\b.*\b(24|36)\b/],
+  ['booster-box', /booster[\s-]?(box|display|kiste)|\bdisplay\b|caja (de )?sobres|boite de boosters|box di buste|\b(24|30|36) (booster|pack|sobres|buste)|\bbox\b.*\b(24|36)\b/],
   ['blister', /\bblister\b|\bcheckland\b/],
   ['tin', /\btin\b|\blata\b|\bboite metal|\bmetallbox\b|\bscatola da collezione in latta/],
   ['sleeved-booster', /sleeved booster|booster in busta/],
   ['booster-pack', /booster[\s-]?pack|\bsobre\b|\bbusta\b|\bsingle booster|\bbooster\b(?!.*\b(box|display|bundle)\b)/],
+  // Last resort: a bare "BOX" / "Caja" next to a set code ("OP16 – BOX –
+  // RESERVA", "Op 07.Caja") is a booster box in practice.
+  ['booster-box', /\bbox\b|\bcaja\b/],
 ];
 
 function typeOf(t) {
@@ -190,6 +208,8 @@ function typeOf(t) {
 
 // Full language words, matched on the accent-stripped lowercase title.
 const LANGS = [
+  // "(Non-English)" must be checked before EN, or "english" claims it.
+  ['NON-EN', /\bnon[\s-]?english\b|\bnot english\b/],
   ['JP', /\b(japanese|japan|jap|jpn|japones|japonais|japanisch|giapponese)\b/],
   ['KR', /\b(korean|coreano|coreen|koreanisch)\b/],
   ['CN', /\b(chinese|chinois|chino|cinese|chinesisch|simplified chinese|traditional chinese)\b/],
@@ -202,12 +222,13 @@ const LANGS = [
 ];
 // Two-letter codes collide with real words ("caja de sobres", "es", "it"), so
 // they only count UPPERCASE in the original title: "OP-09 Booster Box EN".
-const LANG_CODES = /\b(JP|JPN|KR|CN|DE|FR|ES|IT|PT|EN)\b/;
+const LANG_CODES = /\b(JP|JPN|KR|CN|DE|FR|ES|ESP|IT|ITA|PT|EN|ENG)\b/;
+const LANG_CODE_ALIASES = { JPN: 'JP', ESP: 'ES', ITA: 'IT', ENG: 'EN' };
 
 function langOf(t, rawTitle) {
   for (const [key, re] of LANGS) if (re.test(t)) return key;
   const m = rawTitle.match(LANG_CODES);
-  if (m) return m[1] === 'JPN' ? 'JP' : m[1];
+  if (m) return LANG_CODE_ALIASES[m[1]] || m[1];
   // Unmarked titles are English in practice: JP/other imports get labelled
   // because they're the exception, and a translated Pokémon set name already
   // pins the language via the set key. --strict-lang keeps them apart instead.
