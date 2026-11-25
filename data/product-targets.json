@@ -36,9 +36,6 @@
     "url": "https://latiendascum.com/1854-one-piece-tcg?q=Disponibilidad-En+stock"
   },
   {
-    "url": "https://kamehousecards.com/collections/one-piece-card-game?filter.v.availability=1&sort_by=created-ascending&grid=default"
-  },
-  {
     "url": "https://www.diver.pt/pt/676-one-piece#/",
     "dynamic": true
   },
@@ -50,9 +47,6 @@
   },
   {
     "url": "https://cardoreum.eu/collections/one-piece-tutti-i-prodotti"
-  },
-  {
-    "url": "https://pokuji.fr/produits/cartes-a-collectionner-tcg/one-piece/"
   },
   {
     "url": "https://www.lerepairedudragon.fr/2093-one-piece-card-game"
@@ -71,9 +65,6 @@
     "url": "https://montalfan.com/categoria-producto/one-piece-card-game/?orderby=date"
   },
   {
-    "url": "https://www.supercollectors.es/categoria-producto/boxes-packs/one-piece/"
-  },
-  {
     "url": "https://www.generacionx.es/juegos-de-cartas"
   },
   {
@@ -85,9 +76,6 @@
   },
   {
     "url": "https://trapcardtcg.com/collections/one-piece-para-break?sort_by=created-descending"
-  },
-  {
-    "url": "https://aquitaz.se/collections/forbestallning?filter.v.availability=1&filter.p.vendor=One+Piece&"
   },
   {
     "url": "https://mercadiagames.pt/shop/?orderby=date&filters=product_cat[one-piece]"
@@ -150,12 +138,6 @@
     "url": "https://thegamerules.com/index.php?route=product/search&search=pokemon+tcg&description=true&fq=1"
   },
   {
-    "url": "https://tcg-family.com/collections/pre-vendas-one-piece"
-  },
-  {
-    "url": "https://tcg-family.com/collections/pre-vendas-pokemon?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
-  },
-  {
     "url": "https://totalcards.net/collections/one-piece-pre-orders?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=manual"
   },
   {
@@ -178,9 +160,6 @@
   },
   {
     "url": "https://gladiusgames.net/es/34-one-piece"
-  },
-  {
-    "url": "https://lamaquinadeltemps.com/74-one-piece-card-game"
   },
   {
     "url": "https://elencuentro.infrecuentes.es/tienda/categoria/tcg/?e-filter-f84f660-ee_tcg_line=one-piece"
@@ -207,9 +186,6 @@
     "url": "https://ark-games.fr/categorie-produit/one-piece/"
   },
   {
-    "url": "https://www.gate-to-the-games.de/One-Piece-TCG-Trading-Card-Game-Kartenspiel-Sammelkarten"
-  },
-  {
     "url": "https://nerdbank.de/collections/one-piece-displays"
   },
   {
@@ -222,9 +198,6 @@
     "url": "https://feenturm.de/collections/one-piece-tcg-1"
   },
   {
-    "url": "https://brosbrielle.nl/collections/one-piece"
-  },
-  {
     "url": "https://www.secretwonderscollectibles.be/collections/one-piece"
   },
   {
@@ -232,9 +205,6 @@
   },
   {
     "url": "https://www.butticards.at/Shop/One-Piece-c163462755"
-  },
-  {
-    "url": "https://www.red-line.shop/11-one-piece"
   },
   {
     "url": "https://www.mondes-fantastiques.com/5102302-cartes-one-piece-card-game?q=Disponibilit%C3%A9-En+stock"
@@ -258,9 +228,6 @@
     "url": "https://www.efantasy.gr/el/%CF%80%CF%81%CE%BF%CF%8A%CF%8C%CE%BD%CF%84%CE%B1/card-games/sc-2183-one-piece-card-game"
   },
   {
-    "url": "https://www.athenscollectibles.gr/el/trading-card-games/one-piece"
-  },
-  {
     "url": "http://magicomens.com/collections/one-piece-card-game"
   },
   {
@@ -268,9 +235,6 @@
   },
   {
     "url": "https://tarsasjatekvac.hu/termek-kategoria/gyujtogetos_kartyajatekok/one-piece/"
-  },
-  {
-    "url": "https://www.gate-to-the-games.de/One-Piece-TCG-Trading-Card-Game-Kartenspiel-Sammelkarten-englisch"
   },
   {
     "url": "https://sportkartyabolt.hu/One-Piece"
@@ -313,9 +277,6 @@
   },
   {
     "url": "https://masterpacks.pt/en/category/trading-card-games/pokemon-tcg?q=&marca=&licenca=&estado=em_stock&ordenar=recentes&layout=grid"
-  },
-  {
-    "url": "https://collgamers.nl/en/collections/pokemontcg?filter.v.availability=1&filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
   },
   {
     "url": "https://www.elduelista.com/collections/pokemon?filter.p.m.custom.tipo_de_producto=Producto+Sellado&filter.v.availability=1&filter.v.option.language=English"
@@ -382,10 +343,6 @@
   }
   ,
   {
-    "url": "https://www.supercollectors.es/categoria-producto/boxes-packs/cartas-pokemon/"
-  }
-  ,
-  {
     "url": "https://www.tcgshop.eu/pok%C3%A9mon-engels?sort=newest"
   }
   ,
@@ -411,10 +368,6 @@
   ,
   {
     "url": "https://nerdbank.de/collections/pokemon?filter.v.price.gte=&filter.v.price.lte=&sort_by=created-descending"
-  }
-  ,
-  {
-    "url": "https://www.athenscollectibles.gr/el/trading-card-games/pokemon"
   }
   ,
   {
