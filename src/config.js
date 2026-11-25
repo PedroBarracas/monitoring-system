@@ -186,4 +186,4 @@ function loadTargetsFile() {
   }
 }
 
-module.exports = { loadConfig };
+module.exports = { loadConfig, DEFAULT_EUR_RATES };

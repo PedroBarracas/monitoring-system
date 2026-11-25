@@ -26,6 +26,11 @@
  *   node scripts/find-silent-targets.js 60                    # 60d window
  *   node scripts/find-silent-targets.js 60 --min-age 14       # 60d window, 14d min-age
  *   node scripts/find-silent-targets.js 30 --json             # machine-readable output
+ *   node scripts/find-silent-targets.js 30 --until 2026-11-16 # measure back from a fixed date
+ *
+ * Windows are measured back from the "as of" date: --until YYYY-MM-DD if given,
+ * otherwise the DB's latest products.last_checked_at (i.e. when the monitor last
+ * ran). That way a stopped monitor doesn't make every target look dormant.
  *
  * Reads DB_PATH from env (falls back to ./data/monitoring.db).
  */
@@ -42,7 +47,7 @@ const COMPACT = process.argv.includes('--compact');
 const positionalArgs = process.argv.slice(2).filter((a, i, arr) => {
   if (a.startsWith('--')) return false;
   // Skip the value that immediately follows --min-age
-  if (arr[i - 1] === '--min-age') return false;
+  if (arr[i - 1] === '--min-age' || arr[i - 1] === '--until') return false;
   return true;
 });
 const DAYS_WINDOW = parseInt(positionalArgs[0], 10) || 30;
@@ -73,8 +78,23 @@ const targets = JSON.parse(fs.readFileSync(TARGETS_PATH, 'utf8'));
 function isoToSqlite(iso) {
   return iso.replace('T', ' ').slice(0, 19);
 }
-const cutoffIso = isoToSqlite(new Date(Date.now() - DAYS_WINDOW * 24 * 3600 * 1000).toISOString());
-const minAgeCutoffIso = isoToSqlite(new Date(Date.now() - MIN_AGE_DAYS * 24 * 3600 * 1000).toISOString());
+
+// "As of" reference point. --until is taken as the END of that day (UTC).
+const untilIdx = process.argv.indexOf('--until');
+let asOfMs;
+if (untilIdx > -1) {
+  asOfMs = Date.parse(`${process.argv[untilIdx + 1]}T23:59:59Z`);
+  if (Number.isNaN(asOfMs)) {
+    console.error(`Invalid --until date "${process.argv[untilIdx + 1]}" (expected YYYY-MM-DD)`);
+    process.exit(1);
+  }
+} else {
+  const { last } = db.prepare('SELECT MAX(last_checked_at) AS last FROM products').get();
+  asOfMs = last ? Date.parse(last.replace(' ', 'T') + 'Z') : Date.now();
+}
+const asOfIso = isoToSqlite(new Date(asOfMs).toISOString());
+const cutoffIso = isoToSqlite(new Date(asOfMs - DAYS_WINDOW * 24 * 3600 * 1000).toISOString());
+const minAgeCutoffIso = isoToSqlite(new Date(asOfMs - MIN_AGE_DAYS * 24 * 3600 * 1000).toISOString());
 
 const productStats = db.prepare(`
   SELECT
@@ -117,12 +137,13 @@ const recentAlertsForSource = db.prepare(`
    AND p.source_url = ?
   WHERE al.event_type IN ('new_product', 'stock_change')
     AND al.sent_at >= ?
+    AND al.sent_at <= ?
 `);
 
 const results = targets.map((t) => {
   const ps = productStats.get(t.url) || { total: 0 };
   const as = alertsForSource.get(t.url) || { total: 0 };
-  const ra = recentAlertsForSource.get(t.url, cutoffIso) || { cnt: 0 };
+  const ra = recentAlertsForSource.get(t.url, cutoffIso, asOfIso) || { cnt: 0 };
   const cache = sourceCacheAgeStmt ? sourceCacheAgeStmt.get(t.url) : null;
 
   // Best available "known since" signal, in order of reliability.
@@ -160,6 +181,7 @@ if (AS_JSON) {
   console.log(JSON.stringify({
     windowDays: DAYS_WINDOW,
     minAgeDays: MIN_AGE_DAYS,
+    asOf: asOfIso,
     cutoff: cutoffIso,
     minAgeCutoff: minAgeCutoffIso,
     totals: {
@@ -177,7 +199,7 @@ if (AS_JSON) {
 }
 
 // Human-readable report
-console.log(`\n=== find-silent-targets.js — window ${DAYS_WINDOW}d, min-age ${MIN_AGE_DAYS}d ===`);
+console.log(`\n=== find-silent-targets.js — window ${DAYS_WINDOW}d, min-age ${MIN_AGE_DAYS}d, as of ${asOfIso} ===`);
 console.log(`Total targets: ${targets.length}   |   ACTIVE: ${buckets.ACTIVE.length}   |   attention: ${buckets.DEAD.length + buckets.BOOTSTRAP_ONLY.length + buckets.DORMANT.length}   |   pending: ${buckets.TOO_YOUNG.length + buckets.UNKNOWN_AGE.length}`);
 console.log(`  DEAD:           ${buckets.DEAD.length}          — 0 products, tracked ≥${MIN_AGE_DAYS}d`);
 console.log(`  BOOTSTRAP_ONLY: ${buckets.BOOTSTRAP_ONLY.length}          — products but no alerts, tracked ≥${MIN_AGE_DAYS}d`);
